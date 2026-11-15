@@ -22,6 +22,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Validate license files
+        run: |
+          test -s LICENSE
+          test -s NOTICE
+          grep -q "GNU GENERAL PUBLIC LICENSE" LICENSE
+          grep -q "GPL-3.0-only" NOTICE
+
       - name: Validate tag version
         if: github.ref_type == 'tag'
         run: |
@@ -131,6 +138,8 @@ jobs:
           path: |
             ${{ steps.package.outputs.file }}
             ${{ steps.package.outputs.file }}.sha256
+            LICENSE
+            NOTICE
           if-no-files-found: error
           retention-days: 14
 
@@ -147,10 +156,18 @@ jobs:
           包含主持端与玩家端本地数据分离、31 套板子、50 种角色资料、独立遗言队列、分阶段计时、本局技能处理清单、主持大字档位、手机和平板自适应界面。身份确认支持发牌后看牌，或随正常夜间行动逐步确认；轮到角色睁眼时直接显示对应座位号。默认保留出局角色夜间空唤醒，并可切换快速放逐记录与逐人计票。复杂特殊技能会进入软件内清单并由主持人确认结果。
 
           此 APK 使用固定发布签名，后续正式版可覆盖安装。正式包不申请网络或悬浮窗权限，并关闭 Android 自动备份。卸载会删除本机数据，请先导出备份。
+
+          ---
+
+          ### 许可证
+
+          本项目源代码及此 Release 中的官方发布物采用 **GPL-3.0-only**。许可证全文见随附的 `LICENSE` 文件，第三方权利说明见 `NOTICE`。分发修改后的 APK 时，必须按同一许可证向接收者提供对应源代码。
           EOF
           gh release create "$GITHUB_REF_NAME" \
             "$FILE" \
             "$FILE.sha256" \
+            LICENSE \
+            NOTICE \
             --repo "$GITHUB_REPOSITORY" \
             --title "夜幕 $VERSION" \
             --notes-file release-notes.md \
