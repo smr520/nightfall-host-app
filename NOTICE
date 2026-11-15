@@ -1,0 +1,14 @@
+# License Notice
+
+Nightfall Host / 夜幕主持
+
+SPDX-License-Identifier: GPL-3.0-only
+
+This repository, its official source distributions, documentation, and
+official binary releases are made available under the GNU General Public
+License, version 3 only (GPL-3.0-only).
+
+This statement also applies to official historical releases from v0.6.0 and
+earlier, and to all later releases. Third-party dependencies, role references,
+trademarks, and linked research materials remain under their respective
+licenses or rights. See LICENSE for the complete GPL-3.0 license text.
