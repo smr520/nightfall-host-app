@@ -209,14 +209,13 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, canU
 
   return (
     <View style={styles.footer}>
-      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
-      {canUndo && stage !== 'ended' ? <View style={styles.footerUndoRow}>
-        <Button title="撤回上一步" variant="ghost" small onPress={onUndo} />
-        <Text style={styles.footerUndoHint}>会回到上一份已保存状态，可在“更多”中重做。</Text>
+      {(canUndo && stage !== 'ended') || (!!hint && !identityRequired) ? <View style={styles.footerMetaRow}>
+        {hint && !identityRequired ? <Text style={styles.hint}>{hint}</Text> : <View style={styles.flex} />}
+        {canUndo && stage !== 'ended' ? <Button title="撤回上一步" variant="ghost" small onPress={onUndo} /> : null}
       </View> : null}
-      <View style={styles.footerRow}>
-        <Button title={primaryLabel || '继续'} onPress={primary} disabled={primaryDisabled} style={styles.flex} />
-        {secondary ? <Button title={secondary.label} variant="ghost" small onPress={secondary.run} style={styles.secondary} /> : null}
+      <View testID="host-action-row" style={styles.footerRow}>
+        <Button title={primaryLabel || '继续'} onPress={primary} disabled={primaryDisabled} style={styles.primaryAction} />
+        {secondary ? <Button title={secondary.label} variant="secondary" onPress={secondary.run} style={styles.secondaryAction} /> : null}
       </View>
     </View>
   );

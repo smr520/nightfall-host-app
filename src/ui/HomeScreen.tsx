@@ -85,9 +85,9 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
       <View style={[styles.newGame, current && styles.newGameCompact]}>
         <View style={styles.newGameHead}>
           <View style={styles.flex}><Text style={styles.eyebrow}>开局准备</Text><Text accessibilityRole="header" style={styles.newTitle}>新对局</Text><Text style={type.footnote}>{lastSetup ? '上次设置只用来预填，每次开局都要重新确认。' : '选好板子，按本桌约定开始。'}</Text></View>
-          {!current ? <View style={styles.cardStack} accessible={false} pointerEvents="none"><View style={styles.cardBack} /><View style={styles.cardFront}><Icon name="moon" size={30} strokeWidth={1.2} /></View></View> : <Icon name="plus" size={24} color={colors.textTertiary} />}
+          <Icon name="chevron-right" size={22} color={colors.textTertiary} />
         </View>
-        {!current && !lastSetup ? <View style={styles.preparationLine}>{['阵容', '桌规', '座位'].map((label, index) => <View key={label} style={styles.preparationStep}><Text style={styles.stepNumber}>{String(index + 1).padStart(2, '0')}</Text><Text style={styles.stepLabel}>{label}</Text>{index < 2 ? <View style={styles.stepRule} /> : null}</View>)}</View> : null}
+        {!current && !lastSetup ? <Text style={styles.preparationText}>阵容  →  桌规  →  座位</Text> : null}
         {lastSetup ? <View testID="last-setup" style={styles.memory}>
           <View style={styles.memoryHead}><Icon name="history" size={18} color={colors.textSecondary} /><Text style={styles.memoryLabel}>上次开局已记住</Text></View>
           <Text style={styles.memoryTitle}>{lastSetup.boardName} · {lastSetup.roles.length} 人</Text>
@@ -100,20 +100,24 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
           <Text style={styles.schemeEdit}>调整</Text><Icon name="chevron-right" size={16} color={colors.textSecondary} />
         </Pressable>
         {preferenceError ? <InlineError>{preferenceError}</InlineError> : null}
-        <Button title="新建一场对局" onPress={onNew} disabled={disabled} variant={current && active ? 'secondary' : 'primary'} />
-        {lastSetup ? <Button title="沿用上次设置，重新确认" variant="secondary" onPress={onRepeat ?? onNew} disabled={disabled} /> : null}
+        <Button
+          title="新建一场对局"
+          onPress={onNew}
+          disabled={disabled}
+          variant={current && active ? 'secondary' : 'primary'}
+        />
       </View>
         </View>
 
         <View testID={responsive.isWideTablet ? 'home-side-column' : undefined} style={responsive.isWideTablet ? styles.sideColumn : styles.stack}>
-      <View style={styles.recentSection}>
+      {history.length ? <View style={styles.recentSection}>
         <View style={styles.rowBetween}><Text accessibilityRole="header" style={styles.sectionTitle}>最近复盘</Text><Text style={type.caption}>{history.length} 场</Text></View>
-        {history.length ? history.slice(0, responsive.isTablet ? 6 : 3).map(game => <Pressable key={game.id} accessibilityRole="button" accessibilityLabel={`复盘 ${game.name}`} onPress={() => onHistory(game.id)} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+        {history.slice(0, responsive.isTablet ? 6 : 3).map(game => <Pressable key={game.id} accessibilityRole="button" accessibilityLabel={`复盘 ${game.name}`} onPress={() => onHistory(game.id)} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
           <View style={styles.dateBlock}><Text style={styles.dateDay}>{new Date(game.startedAt).getDate().toString().padStart(2, '0')}</Text><Text style={styles.dateMonth}>{new Date(game.startedAt).getMonth() + 1} 月</Text></View>
           <View style={styles.flex}><Text style={type.callout}>{game.name}</Text><Text style={styles.historyMeta}>{game.board} · {game.players.length} 人</Text></View>
           <Text style={[styles.result, game.winner === 'wolf' && styles.resultWolf, game.winner === 'good' && styles.resultGood]}>{winnerLabel(game.winner ?? 'draw').replace('阵营胜利', '胜')}</Text><Icon name="chevron-right" size={15} color={colors.textTertiary} />
-        </Pressable>) : <View style={styles.emptyHistory}><Icon name="archive" size={23} color={colors.textTertiary} /><Text style={[type.footnote, styles.flex]}>完成的对局会自动收进复盘。</Text></View>}
-      </View>
+        </Pressable>)}
+      </View> : null}
         </View>
       </View>
       <View style={styles.footer}><Icon name="shield" size={13} color={colors.textTertiary} /><Text style={styles.footerText}>本机存档 · 身份默认隐藏</Text></View>
@@ -134,11 +138,11 @@ const styles = StyleSheet.create({
   offlineText: { ...type.caption, fontSize: 10, fontWeight: '400' },
   roleSwitch: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 48, paddingLeft: spacing.sm },
   roleSwitchText: { ...type.caption, color: colors.textSecondary, fontWeight: '500' },
-  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xl, gap: 28 },
-  stack: { gap: 28 },
-  dashboard: { flexDirection: 'row', alignItems: 'flex-start', gap: 32 },
-  mainColumn: { flex: 1.45, minWidth: 0, gap: 28 },
-  sideColumn: { flex: 1, minWidth: 280, maxWidth: 460, gap: 28 },
+  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xl, gap: spacing.xl },
+  stack: { gap: spacing.xl },
+  dashboard: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  mainColumn: { flex: 1.45, minWidth: 0, gap: spacing.xl },
+  sideColumn: { flex: 1, minWidth: 280, maxWidth: 440, gap: spacing.xl },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   historyButton: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 48, paddingHorizontal: 12, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
   historyButtonText: { ...type.footnote, color: colors.text },
@@ -160,7 +164,7 @@ const styles = StyleSheet.create({
   undo: { minWidth: 72 },
   savedLine: { flexDirection: 'row', gap: 4, justifyContent: 'center', alignItems: 'center', marginTop: 5 },
   savedNote: { ...type.caption, fontSize: 11, fontWeight: '400' },
-  newGame: { padding: 20, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt, gap: 20 },
+  newGame: { padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt, gap: spacing.lg },
   newGameCompact: { backgroundColor: colors.surface, padding: 0 },
   newGameHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   memory: { gap: 6, padding: spacing.lg, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, borderRadius: radius.md },
@@ -168,16 +172,9 @@ const styles = StyleSheet.create({
   memoryLabel: { ...type.caption, color: colors.textSecondary },
   memoryTitle: { ...type.headline, marginTop: 2 },
   memoryHint: { ...type.caption, color: colors.textTertiary, marginTop: 2 },
-  newTitle: { ...type.title, fontSize: 28, lineHeight: 38, marginTop: 6, marginBottom: 5 },
-  cardStack: { width: 76, height: 90, alignItems: 'center', justifyContent: 'center', marginRight: 7 },
-  cardBack: { position: 'absolute', width: 54, height: 74, borderRadius: 7, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceAlt, transform: [{ rotate: '-12deg' }, { translateX: -8 }] },
-  cardFront: { width: 54, height: 74, borderRadius: 7, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '6deg' }] },
-  preparationLine: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
-  preparationStep: { flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
-  stepNumber: { fontSize: 12, fontWeight: '500', color: colors.clay, fontVariant: ['tabular-nums'] },
-  stepLabel: { fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-  stepRule: { height: StyleSheet.hairlineWidth, minWidth: 5, flex: 1, backgroundColor: colors.line, marginHorizontal: 7 },
-  scheme: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
+  newTitle: { ...type.title, fontSize: 28, lineHeight: 36, marginTop: 4, marginBottom: 2 },
+  preparationText: { ...type.caption, color: colors.textSecondary, letterSpacing: 0.4 },
+  scheme: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
   schemeLabel: { ...type.caption, fontSize: 11, fontWeight: '400' },
   schemeValue: { ...type.callout, marginTop: 3 },
   schemeEdit: { ...type.footnote, fontSize: 12 },

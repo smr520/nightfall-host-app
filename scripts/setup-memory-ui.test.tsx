@@ -46,18 +46,19 @@ function mountSetup(onStart: jest.Mock, onBack = jest.fn()) {
 }
 
 function mountHome(lastSetup: SetupMemory | undefined) {
+  const onNew = jest.fn();
   const onRepeat = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
       <MotionProvider>
-        <HomeScreen session={null} history={[]} hostingMode="standard" lastSetup={lastSetup} disabled={false} onPersonalize={jest.fn()} onNew={jest.fn()} onRepeat={onRepeat} onResume={jest.fn()} onHistory={jest.fn()} onUndo={jest.fn()} />
+        <HomeScreen session={null} history={[]} hostingMode="standard" lastSetup={lastSetup} disabled={false} onPersonalize={jest.fn()} onNew={onNew} onRepeat={onRepeat} onResume={jest.fn()} onHistory={jest.fn()} onUndo={jest.fn()} />
       </MotionProvider>,
     );
   });
   const button = (label: string) => renderer.root.findAll(node => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0];
   const text = () => renderer.root.findAllByType(Text).map(node => String(node.props.children)).join('\n');
-  return { renderer, button, text, onRepeat, unmount: () => act(() => renderer.unmount()) };
+  return { renderer, button, text, onNew, onRepeat, unmount: () => act(() => renderer.unmount()) };
 }
 
 describe('remembered setup in the interface', () => {
@@ -108,10 +109,10 @@ describe('remembered setup in the interface', () => {
     expect(app.text()).toContain('上次开局已记住');
     expect(app.text()).toContain(source.name);
     expect(app.text()).toContain('发言 150 秒');
-    const repeat = app.button('沿用上次设置，重新确认');
-    expect(repeat).toBeDefined();
-    act(() => repeat.props.onPress());
-    expect(app.onRepeat).toHaveBeenCalledTimes(1);
+    const openSetup = app.button('新建一场对局');
+    expect(openSetup).toBeDefined();
+    act(() => openSetup.props.onPress());
+    expect(app.onNew).toHaveBeenCalledTimes(1);
     app.unmount();
   });
 
@@ -119,7 +120,7 @@ describe('remembered setup in the interface', () => {
     const app = mountHome(undefined);
     expect(app.text()).not.toContain('上次开局已记住');
     expect(app.button('新建一场对局')).toBeDefined();
-    expect(app.button('沿用上次设置，重新确认')).toBeUndefined();
+    expect(app.button('新建一场对局')).toBeDefined();
     app.unmount();
   });
 });

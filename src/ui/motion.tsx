@@ -1,11 +1,21 @@
 import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { motionTokens } from '../theme';
 
 export const motionEnabled = process.env.NODE_ENV !== 'test';
 export const enterCurve = Easing.bezier(0.22, 1, 0.36, 1);
 export const moveCurve = Easing.bezier(0.25, 1, 0.5, 1);
-export const pageDuration = 220;
-export const motionTiming = { press: 90, release: 150, page: pageDuration, sheetIn: 260, sheetOut: 180 } as const;
+export const pageDuration = 180;
+export const motionTiming = {
+  press: motionTokens.press,
+  release: motionTokens.release,
+  page: pageDuration,
+  tab: motionTokens.fast,
+  stage: motionTokens.base,
+  sheetIn: motionTokens.slow,
+  sheetOut: motionTokens.exit,
+} as const;
+export type PageMotion = 'slide' | 'fade' | 'tab' | 'stage';
 const ReduceMotion = createContext(true);
 
 /** Default to stillness until the OS preference is known; only one native subscription. */
@@ -59,7 +69,7 @@ export function MotionPressable({ style, onPressIn, onPressOut, disabled, ...pro
     animation.current?.stop();
     if (!motionEnabled || reduce || disabled) { scale.setValue(1); return; }
     animation.current = Animated.timing(scale, {
-      toValue: down ? 0.98 : 1,
+      toValue: down ? 0.985 : 1,
       duration: down ? motionTiming.press : motionTiming.release,
       easing: enterCurve,
       useNativeDriver: true,
@@ -74,8 +84,8 @@ export function MotionPressable({ style, onPressIn, onPressOut, disabled, ...pro
     style={[resolvedStyle, { transform: [...(Array.isArray(transform) ? transform : []), { scale }] }]} />;
 }
 
-/** First paint is immediate. Only a user-triggered change of key moves the new page. */
-export function usePageEnter(pageKey: string, direction: number) {
+/** First paint is immediate. Peer tabs fade; wizard steps may keep a small directional hint. */
+export function usePageEnter(pageKey: string, direction: number, motion: PageMotion = 'slide') {
   const [progress] = useState(() => new Animated.Value(1));
   const previousKey = useRef(pageKey);
   const reduce = useReduceMotion();
@@ -85,11 +95,23 @@ export function usePageEnter(pageKey: string, direction: number) {
     progress.stopAnimation();
     if (!motionEnabled || reduce || !changed) { progress.setValue(1); return; }
     progress.setValue(0);
-    const animation = Animated.timing(progress, { toValue: 1, duration: pageDuration, easing: moveCurve, useNativeDriver: true });
+    const duration = motion === 'tab' ? motionTiming.tab : motion === 'stage' ? motionTiming.stage : motion === 'fade' ? 160 : pageDuration;
+    const animation = Animated.timing(progress, { toValue: 1, duration, easing: motion === 'tab' ? enterCurve : moveCurve, useNativeDriver: true });
     animation.start();
     return () => animation.stop();
-  }, [pageKey, direction, progress, reduce]);
-  return { opacity: progress, transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [direction * 12, 0] }) }] };
+  }, [pageKey, direction, motion, progress, reduce]);
+  if (motion === 'tab' || motion === 'fade' || motion === 'stage') {
+    return {
+      opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [motion === 'tab' ? 0.72 : motion === 'stage' ? 0.62 : 0.55, 1] }),
+      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [motion === 'tab' ? 4 : motion === 'stage' ? 7 : 6, 0] }) }],
+    };
+  }
+  return { opacity: progress, transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [direction * 10, 0] }) }] };
+}
+
+/** Bridge a host stage change without turning it into a full page transition. */
+export function useStageReveal(stageKey: string) {
+  return usePageEnter(stageKey, 1, 'stage');
 }
 
 /** The scrim and sheet share a clock. Retoggling cancels the old exit callback. */
@@ -113,6 +135,12 @@ export function useSheetMotion(visible: boolean) {
   return {
     present: visible || (motionEnabled && !reduce && exiting),
     backdropStyle: { opacity: progress },
-    panelStyle: { opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }] },
+    panelStyle: {
+      opacity: progress,
+      transform: [
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
+        { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) },
+      ],
+    },
   };
 }

@@ -301,7 +301,11 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
 
   return (
     <View style={styles.root}>
-      <TopBar title={editingProfile ? initialProfile ? '编辑自定义方案' : '新建自定义方案' : '新建对局'} subtitle={`第 ${step + 1} 步 / ${editingProfile ? 2 : 3}`} onBack={requestBack} />
+      <TopBar
+        title={editingProfile ? initialProfile ? '编辑自定义方案' : '新建自定义方案' : '新建对局'}
+        subtitle={`${initialProfile?.name ?? hostingModeLabel(mode)} · 第 ${step + 1} 步 / ${editingProfile ? 2 : 3}`}
+        onBack={requestBack}
+      />
       <ScrollView ref={contentScroll} pointerEvents={profileSaving ? 'none' : 'auto'} contentContainerStyle={[styles.content, { paddingHorizontal: responsive.gutter, width: '100%', maxWidth: Math.min(responsive.maxContentWidth, 960), alignSelf: 'center' }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
         <View style={styles.steps}>
           {(editingProfile ? ['名称与阵容', '桌规'] : ['板子', '桌规', '座位']).map((label, index) => (
@@ -337,13 +341,7 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
             onSubmitEditing={Keyboard.dismiss}
           />
           {nameError ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.nameError}>{nameError}</Text> : <Text style={type.footnote}>这是整套阵容和桌规的名字，与板子名称分开保存。</Text>}
-        </View> : <View style={styles.modeCard}>
-          <View style={styles.rowBetween}>
-            <Text style={type.caption}>主持方式</Text>
-            <Text style={styles.modeName}>{initialProfile ? initialProfile.name : hostingModeLabel(mode)}</Text>
-          </View>
-          {initialProfile ? <Text style={type.footnote}>已套用你的阵容和桌规。本局可以继续调整，已保存的方案保持原样。</Text> : null}
-        </View>}
+        </View> : null}
 
         <Animated.View style={[styles.stepContent, stepMotion]}>
           {step === 0 ? <BoardStep

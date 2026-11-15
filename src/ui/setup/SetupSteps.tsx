@@ -1,6 +1,5 @@
 import React from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { boardIntroduction } from '../../game/board-reference';
 import { boardSupport } from '../../game/board-support';
 import type { Board } from '../../game/boards';
 import { isIdentityCard } from '../../game/role-catalog';
@@ -47,12 +46,12 @@ export function BoardStep({ editingProfile, board, total, name, players, error, 
           </View>
           <View style={styles.playerTotal}><Text style={styles.playerTotalValue}>{total}</Text><Text style={type.caption}>人</Text></View>
         </View>
-        <BoardSupportBadge board={board} withSummary />
-        <View style={styles.boardRoster}>{boardRoleList(board.roles).map(item => <View key={item.name} style={styles.boardRosterItem}><Text style={[styles.rosterName, item.wolf && styles.rosterWolf]}>{item.name}</Text><Text style={styles.rosterCount}>×{item.count}</Text></View>)}</View>
-        {board.deck ? <Text style={type.footnote}>以上是 {Object.values(board.counts).reduce((a, b) => a + b, 0)} 张完整牌池；已自动洗牌，{total} 张入座、{Object.values(board.counts).reduce((a, b) => a + b, 0) - total} 张扣作底牌。</Text> : null}
-        <Text style={type.footnote}>{boardIntroduction(board).overview}</Text>
-        {support.level !== 'verified' ? <Text style={type.footnote}>{support.summary} 请先查看主持处理项。</Text> : null}
-        <View style={styles.boardChange}><Text style={styles.changeHint}>点击更换板子</Text><Icon name="chevron-right" size={18} color={colors.textSecondary} /></View>
+        <View style={styles.boardMetaRow}>
+          <BoardSupportBadge board={board} />
+          <Text style={styles.boardRoleLine}>{boardRoleList(board.roles).map(item => `${item.name}×${item.count}`).join(' · ')}</Text>
+        </View>
+        {board.deck ? <Text style={type.footnote}>完整牌池已重新洗牌：{total} 张入座，其余扣作底牌。</Text> : null}
+        {support.level !== 'verified' ? <Text style={styles.boardChangeHint}>{support.summary}</Text> : null}
       </MotionPressable>
       <View style={styles.boardLinks}><Icon name="book" size={19} color={colors.textSecondary} /><View style={styles.flex}><Button title="查看当前板子介绍" variant="ghost" small onPress={onPreviewBoard} /></View></View>
       <Button title="自定义人数和角色" variant="secondary" onPress={onEditLineup} />
@@ -106,7 +105,9 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
             flow: { ...rules.flow, identityCheck: identityCheck as NonNullable<Rules['flow']>['identityCheck'] },
           })}
         />
-        <Text style={type.footnote}>选“确认即行动”后不会增加开局核对步骤。法官按夜间顺序依次唤醒玩家：主持台先让主持人点选本步实际睁眼的座位，确认身份或阵营后立即发动技能，用完闭眼，再叫下一个角色。</Text>
+        <Text style={type.footnote}>{(rules.flow?.identityCheck ?? 'after-deal') === 'during-night'
+          ? '走夜时先点选本步实际睁眼的座位，确认后才进入刀人或技能操作。'
+          : '发牌后由玩家自行确认身份，进入第一夜。'}</Text>
         <Divider />
         <ChoiceRow
           label="放逐记录"
@@ -120,7 +121,9 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
             table: { ...rules.table, exileRecord: exileRecord as 'detailed' | 'quick' },
           })}
         />
-        <Text style={type.footnote}>快速记录直接选择被票出的座位，不再逐人录票；死亡技能、遗言、警徽和胜负仍正常处理。</Text>
+        <Text style={type.footnote}>{table.exileRecord === 'quick'
+          ? '直接记录最终被票出者，死亡、技能、警徽和胜负仍照常处理。'
+          : '逐人记录投票或弃票，并自动处理平票。'}</Text>
         <Divider />
         <ChoiceRow
           label="出局角色夜间口播"
@@ -131,7 +134,9 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
             flow: { ...rules.flow, keepDeadCalls: keepDeadCalls === 'keep' },
           })}
         />
-        <Text style={type.footnote}>默认保留出局角色的空唤醒口播，避免用流程省略暴露谁已出局。主持台只看台词，不录入行动。</Text>
+        <Text style={type.footnote}>{shouldKeepDeadCalls(rules)
+          ? '出局角色仍念空唤醒，避免通过流程省略暴露身份。'
+          : '角色出局后跳过其后续夜间口播。'}</Text>
       </View>
       <View style={styles.group}>
         <Text style={type.caption}>胜负与警长</Text>
@@ -255,7 +260,7 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
         <Button title="重新洗牌" variant="secondary" onPress={onRedeal} />
       </View> : null}
       <View style={[styles.seatList, responsive.isWideTablet && styles.seatListWide]}>
-        <View style={styles.seatTableHead}><Text style={[styles.seatTableNumber, { width: seatNumberWidth }]}>座位</Text><Text style={[type.caption, styles.flex]}>玩家姓名 · 可不填</Text><Text style={styles.seatTableRole}>{progressiveIdentity ? '确认方式' : '身份'}</Text></View>
+        <View style={styles.seatTableHead}><Text style={[styles.seatTableNumber, { width: seatNumberWidth }]}>座位</Text><Text style={[type.caption, styles.flex]}>玩家姓名 · 可不填</Text>{!progressiveIdentity ? <Text style={styles.seatTableRole}>身份</Text> : null}</View>
         {players.map((player, index) => (
           <View key={index} style={responsive.isWideTablet ? styles.seatItemWide : undefined}>
             {index > 0 ? <Divider /> : null}
@@ -270,11 +275,11 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
                 style={styles.nameInput}
                 maxLength={12}
               />
-              {progressiveIdentity
-                ? <Text accessibilityLabel={`${index + 1}号身份将在夜间确认`} style={styles.seatTableRole}>夜间确认</Text>
-                : <MotionPressable accessibilityRole="button" accessibilityLabel={`${index + 1}号身份 ${ROLES[player.role].name}，点击更改`} onPress={() => onRoleSeat(index)} style={styles.rolePill}>
+              {!progressiveIdentity
+                ? <MotionPressable accessibilityRole="button" accessibilityLabel={`${index + 1}号身份 ${ROLES[player.role].name}，点击更改`} onPress={() => onRoleSeat(index)} style={styles.rolePill}>
                   <Text style={[styles.rolePillText, isWolf(player.role) && styles.rolePillWolf]}>{ROLES[player.role].short}</Text>
-                </MotionPressable>}
+                </MotionPressable>
+                : null}
             </View>
           </View>
         ))}
@@ -284,12 +289,12 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
         <Text style={type.footnote}>{progressiveIdentity
           ? '确认姓名与座位后开始第一夜。身份不会在本页写入，主持人会按夜间行动逐步核对并记录。'
           : '确认身份与座位，并按上一步约定的桌规开始第一夜。需要调整桌规可返回上一步。'}操作前确认手机仅主持人可见。</Text>
-        {tableSummary.map(line => <Text key={line} style={type.footnote}>{line}</Text>)}
+        <Text style={type.footnote}>{tableSummary.slice(0, 2).join(' · ')} · 完整规则见上一步。</Text>
         <Button title="查看本局规则与角色" variant="secondary" onPress={onOpenReference} />
       </View>
       {support.checks.length ? <View style={[styles.group, styles.hostNotice]}>
         <Text accessibilityRole="header" style={type.headline}>本局现场处理清单</Text>
-        {support.checks.map(check => <View key={check.role} style={styles.field}><Text style={type.callout}>{ROLES[check.role].name}</Text><Text style={type.footnote}>{check.note}</Text></View>)}
+        <Text style={type.footnote}>{support.checks.map(check => `${ROLES[check.role].name}：${check.note}`).join('；')}</Text>
         {support.manualDawn ? <Text style={type.footnote}>{supportedRules.flow?.manualDawn ? '已启用天亮手动复核，确认实际出局后再公布。' : '天亮手动复核已关闭，请确认本桌可以按基础夜间结果结算。'}</Text> : null}
         {support.manualVictory ? <Text style={type.footnote}>{supportedRules.flow?.manualVictory ? '已启用主持人判定结束，完整处理特殊技能后，在“更多”结束对局。' : '主持人判定结束已关闭，将按基础阵营条件自动结束。'}</Text> : null}
         <Button title="调整本局处理方式" variant="secondary" onPress={onOpenFlow} />

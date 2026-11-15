@@ -83,7 +83,7 @@ describe('remembered setup through the app', () => {
     const second = await mountApp();
     expect(second.text()).toContain('上次开局已记住');
     expect(second.text()).toContain(BOARD_LIBRARY[0].name);
-    second.press('沿用上次设置，重新确认');
+    second.press('新建一场对局');
     expect(second.text()).toContain('已带入上次开局设置');
     expect(second.text()).toContain('本次仍会进入座位确认');
     second.press('下一步');
@@ -109,7 +109,7 @@ describe('remembered setup through the app', () => {
     first.press('返回');
     await flush();
     expect(first.text()).toContain('上次开局已记住');
-    first.press('沿用上次设置，重新确认');
+    first.press('新建一场对局');
     await flush();
     expect(clearSession).not.toHaveBeenCalled();
     expect(first.text()).toContain('已带入上次开局设置');

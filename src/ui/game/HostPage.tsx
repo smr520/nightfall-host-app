@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
+import { Animated, Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
 import { callActorStatus, callIdentitySeats, getNightAnnouncement, nightCallIdentityConfirmed, nightIdentitySeats } from '../../game/engine';
 import { isNightStage } from '../../game/host-ui';
 import { hostingProgress } from '../../game/hosting-reference';
@@ -20,6 +20,7 @@ import type { Draft } from './draft';
 import { EndedPanel, HuntButton, NineTailsMarks, NightRecords, PendingPanel, WitchPanel } from './HostPanels';
 import type { HostTextSize } from '../../game/preferences';
 import { hostTextMetrics } from '../host-text';
+import { useStageReveal } from '../motion';
 
 export function HostPage({ game, stage, draft, patch, doAction, showRoles, scroll, error, activeVoter, speechClock, hostTextSize = 'standard', supportTaskCount = 0, onOpenTools, onOpenSupport = () => {}, onGoSeats, onGoLog, onTemporarySpeech, onNote, footer }: {
   game: Game;
@@ -49,9 +50,11 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const scriptTextStyle = { fontSize: hostText.scriptSize, lineHeight: hostText.scriptLineHeight };
   const privateTextStyle = { fontSize: hostText.privateSize, lineHeight: hostText.privateLineHeight };
   const ruleTextStyle = { fontSize: Math.max(15, hostText.privateSize), lineHeight: Math.max(23, hostText.privateLineHeight) };
+  const stageMotion = useStageReveal(`${game.day}:${stage}`);
   const narrationGame = dawnDraftNeedsConfirmation(game, draft.dawn) ? { ...game, night: { ...game.night, manualDeaths: undefined } } : game;
   const narration = hostNarration(narrationGame, info.script, { selected: draft.selected, activeVoter, speaker: speechClock.speaker, signup: draft.signup, pkSpeaking: draft.pkSpeaking, voteMode: draft.voteMode, batchVoters: draft.batchVoters, editingVoter: draft.voter });
   const recentOutcome = draft.selected === null && draft.poison === null && !draft.save && speechClock.speaker === null ? latestPublicOutcome(game) : null;
+  const outcomeMotion = useStageReveal(recentOutcome ? `outcome:${recentOutcome.eventId}` : 'no-outcome');
   const night = isNightStage(stage);
   const meta = night && stage !== 'wolves' ? ROLES[stage as keyof typeof ROLES] : null;
   const progress = hostingProgress(game);
@@ -67,12 +70,20 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const identityRequired = progressiveIdentity
     && identityMode === 'during-night'
     && !nightCallIdentityConfirmed(game, stage as NightCall);
+  const identityMotion = useStageReveal(`${stage}:${identityRequired ? 'waiting' : 'ready'}`);
   const identitySeats = expectedIdentitySeats.filter(seat => identityConfirmed.includes(seat));
   const identityTotal = progressiveIdentity
     ? identityMode === 'at-nightfall' ? game.players.length : nightIdentitySeats(game).length
     : 0;
   const identityUnit = identityMode === 'at-nightfall' ? '个已确认座位' : '个夜间行动座位';
   const identityLabel = stage === 'wolves' ? '狼人阵营' : ROLES[stage as keyof typeof ROLES]?.name ?? '当前角色';
+  const hideRedundantPrivatePrompt = progressiveIdentity
+    && !identityRequired
+    && actorStatus.hasActor
+    && draft.selected === null
+    && draft.poison === null
+    && !draft.save
+    && stage !== 'treasure-master';
   const identityHint = identityRequired
     ? `请按本局实际身份牌，选出本步应睁眼的 ${expectedIdentitySeats.length} 个座位。`
     : actorStatus.blockedByFear
@@ -84,47 +95,40 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   return (
     <View style={styles.flex}>
       <ScrollView ref={scroll} contentContainerStyle={[styles.content, { paddingHorizontal: responsive.gutter, width: '100%', maxWidth: responsive.maxContentWidth, alignSelf: 'center' }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {recentOutcome ? <View style={styles.publicOutcome}>
+        {recentOutcome ? <Animated.View style={[styles.publicOutcome, outcomeMotion]}>
           <View style={styles.scriptEyebrow}><Icon name="check" size={16} color={colors.danger} /><Text style={styles.outcomeLabel}>刚刚公布的结果</Text></View>
           <Text accessibilityRole="header" accessibilityLabel="刚刚公布的大字结果" style={[styles.speechHeadline, headlineTextStyle, styles.outcomeHeadline]}>{recentOutcome.headline}</Text>
           <Text accessibilityLabel="刚刚公布的台词" selectable style={[styles.script, scriptTextStyle]}>{recentOutcome.spoken}</Text>
-        </View> : null}
-        <View style={styles.stageHead}>
+        </Animated.View> : null}
+        <Animated.View style={[styles.stageHead, stageMotion]}>
           <View style={styles.rowBetween}>
             <View style={styles.scriptEyebrow}><Icon name={night ? 'moon' : 'mic'} size={18} color={colors.clay} /><Text style={styles.scriptLabel}>主持人口播 · {info.title}</Text></View>
             <Text style={styles.scriptPage}>{String(game.day).padStart(2, '0')}</Text>
           </View>
           <Text accessibilityRole="header" accessibilityLabel="本环节大字提示" style={[styles.speechHeadline, headlineTextStyle, (stage === 'dawn' || stage === 'dawn-announcement' || stage === 'hunter' || stage === 'shot' || stage === 'link') && styles.outcomeHeadline]}>{narration.headline}</Text>
           <View style={styles.scriptTextWrap}><Text accessibilityLabel="完整主持台词" selectable style={[styles.script, scriptTextStyle]}>{narration.spoken}</Text></View>
-        </View>
+        </Animated.View>
 
         <View style={styles.stepGuide}>
-          <View style={styles.stepGuideHead}>
-            <Icon name="check" size={17} color={colors.text} />
-            <Text accessibilityRole="header" style={styles.stepGuideTitle}>本步必须完成</Text>
-          </View>
-          <Text accessibilityLabel="本步必须完成内容" selectable style={[styles.stepGuideText, ruleTextStyle]}>{progress.check}</Text>
-          {info.help ? <View style={styles.stepRule}>
-            <Text accessibilityRole="header" style={styles.stepRuleTitle}>规则提醒</Text>
-            <Text accessibilityLabel="本步规则提醒" selectable style={[styles.stepGuideText, ruleTextStyle]}>{info.help}</Text>
-          </View> : null}
-          {narration.privateNote ? <Text style={type.footnote}>私密刀口、身份和技能目标只显示在下方“仅主持人看”区域。</Text> : null}
+          <Text accessibilityLabel="本步必须完成内容" selectable style={[styles.stepGuideText, ruleTextStyle]}>
+            <Text style={styles.stepGuideInlineTitle}>本步必须完成 · </Text>{progress.check}
+          </Text>
+          {info.help ? <Text accessibilityLabel="本步规则提醒" selectable style={[styles.stepGuideRule, ruleTextStyle]}>
+            <Text style={styles.stepGuideInlineTitle}>规则提醒 · </Text>{info.help}
+          </Text> : null}
         </View>
 
-        {stage !== 'ended' ? <View style={styles.operationHead}><View style={styles.scriptEyebrow}><Icon name="shield" size={16} color={colors.textTertiary} /><Text style={[styles.operationLabel, { fontSize: hostText.operationSize }]}>主持人操作</Text></View><Text style={styles.operationHint}>以下内容不用念</Text></View> : null}
-        {supportTaskCount > 0 && stage !== 'ended' ? (
-          <View style={styles.supportBanner}>
-            <View style={styles.supportBannerText}>
-              <Text style={type.callout}>本局有 {supportTaskCount} 项特殊技能需要核对</Text>
-              <Text style={type.footnote}>打开清单，写明本次座位、目标、次数或裁定结果。</Text>
-            </View>
-            <Button title="打开技能清单" variant="secondary" small onPress={onOpenSupport} />
+        {stage !== 'ended' ? <View style={styles.operationHead}>
+          <View style={styles.scriptEyebrow}><Icon name="shield" size={15} color={colors.textTertiary} /><Text style={[styles.operationLabel, { fontSize: hostText.operationSize }]}>主持人操作</Text></View>
+          <View style={styles.operationMeta}>
+            <Text style={styles.operationHint}>只给主持人</Text>
+            {supportTaskCount > 0 ? <Button title={`清单 ${supportTaskCount}`} accessibilityLabel="打开技能清单" variant="ghost" small onPress={onOpenSupport} /> : null}
           </View>
-        ) : null}
-        {narration.privateNote ? <View style={styles.privatePrompt}><Text style={styles.privateLabel}>仅主持人看</Text><Text style={[styles.privateText, privateTextStyle]}>{narration.privateNote}</Text></View> : null}
+        </View> : null}
+        {narration.privateNote && !identityRequired && !hideRedundantPrivatePrompt ? <View style={styles.privatePrompt}><Text style={styles.privateLabel}>仅主持人看</Text><Text style={[styles.privateText, privateTextStyle]}>{narration.privateNote}</Text></View> : null}
 
         {progressiveIdentity ? (
-          <Card style={styles.panel}>
+          <Animated.View style={identityMotion}><Card style={styles.panel}>
             <View style={styles.rowBetween}>
               <View style={styles.identityHead}>
                 <Icon name="eye" size={18} color={colors.textSecondary} />
@@ -155,7 +159,7 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
               <Text accessibilityLabel="本步身份座位" selectable style={styles.identitySeats}>{identitySeats.length ? identitySeats.map(seat => `${seat}号`).join('、') : '暂无可显示座位'}</Text>
             </>}
             <Text style={type.footnote}>{identityLabel}。{identityHint}{identityRequired ? '' : '公开台词仍只念角色名，不念座位号。'}</Text>
-          </Card>
+          </Card></Animated.View>
         ) : null}
 
         {stage === 'identity-check' ? (

@@ -146,7 +146,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, h
           </View>
         </View>
       ) : (
-      <PageTransition pageKey={tab} direction={direction}>
+      <PageTransition pageKey={tab} direction={direction} motion="tab">
         {tab === 'host' ? hostPage : null}
         {tab === 'seats' ? <SeatsPage game={game} showRoles={showRoles} onToggleRoles={setShowRoles} /> : null}
         {tab === 'log' ? <LogPage game={game} /> : null}

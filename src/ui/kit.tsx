@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, hitSlop, radius, spacing, type } from '../theme';
 import { ROLES, isWolf } from '../game/roles';
 import type { Game, Player } from '../game/types';
-import { MotionPressable as Pressable, useAnimatedScalar, usePageEnter, useSheetMotion } from './motion';
+import { MotionPressable as Pressable, useAnimatedScalar, usePageEnter, useSheetMotion, type PageMotion } from './motion';
 import { Icon, type IconName } from './Icon';
 import { clampFontScale, useResponsive } from './responsive';
 
@@ -38,11 +38,11 @@ export function TopBar({ title, subtitle, onBack, right, large }: { title: strin
 }
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export function Button({ title, onPress, variant = 'primary', disabled, selected, small, style }: { title: string; onPress: () => void; variant?: ButtonVariant; disabled?: boolean; selected?: boolean; small?: boolean; style?: StyleProp<ViewStyle> }) {
+export function Button({ title, accessibilityLabel, onPress, variant = 'primary', disabled, selected, small, style }: { title: string; accessibilityLabel?: string; onPress: () => void; variant?: ButtonVariant; disabled?: boolean; selected?: boolean; small?: boolean; style?: StyleProp<ViewStyle> }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled: !!disabled, selected: !!selected }}
       disabled={disabled}
       onPress={onPress}
@@ -130,7 +130,7 @@ export function SeatGrid({ game, selected, onSelect, showRoles, filter, multi = 
   const { fontScale } = useWindowDimensions();
   const supportedFontScale = clampFontScale(fontScale);
   const minSeatWidth = Math.max(66, Math.ceil(66 * supportedFontScale));
-  const seatMinHeight = Math.round(92 + Math.max(0, supportedFontScale - 1) * 22);
+  const seatMinHeight = Math.round(82 + Math.max(0, supportedFontScale - 1) * 22);
   const maxColumns = gridWidth >= 900 ? 8 : gridWidth >= 600 ? 6 : 4;
   const columns = gridWidth ? Math.max(1, Math.min(maxColumns, Math.floor((gridWidth + spacing.sm) / (minSeatWidth + spacing.sm)))) : 4;
   const seatWidth = gridWidth ? (gridWidth - spacing.sm * (columns - 1)) / columns : undefined;
@@ -166,8 +166,8 @@ export function EmptyState({ title, description }: { title: string; description:
   return <View style={kit.empty}><Text style={type.headline}>{title}</Text><Text style={[type.footnote, kit.emptyText]}>{description}</Text></View>;
 }
 
-export function PageTransition({ pageKey, direction = 1, children }: { pageKey: string; direction?: number; children: React.ReactNode }) {
-  const style = usePageEnter(pageKey, direction);
+export function PageTransition({ pageKey, direction = 1, motion = 'fade', children }: { pageKey: string; direction?: number; motion?: PageMotion; children: React.ReactNode }) {
+  const style = usePageEnter(pageKey, direction, motion);
   return <Animated.View style={[kit.flex, style]}>{children}</Animated.View>;
 }
 
@@ -190,7 +190,7 @@ export function TabBar<T extends string>({ tabs, value, onChange, disabled = fal
             <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active, disabled }} accessibilityLabel={tab.label} disabled={disabled} onPress={() => onChange(tab.key)} style={[kit.tabItem, disabled && kit.rowDisabled]}>
               <Icon name={tab.icon ?? tabIcons[tab.key] ?? 'more'} size={22} color={active ? colors.text : colors.textTertiary} strokeWidth={active ? 2 : 1.6} />
               <Text style={[kit.tabLabel, active && kit.tabLabelActive]}>{tab.label}</Text>
-              {tab.hint ? <Text style={kit.tabHint}>{tab.hint}</Text> : null}
+              {tab.hint ? <View style={kit.tabBadge}><Text style={kit.tabBadgeText}>{tab.hint}</Text></View> : null}
             </Pressable>
           );
         })}
@@ -296,7 +296,7 @@ export const kit = StyleSheet.create({
   sheetFooter: { padding: spacing.lg, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.line, gap: spacing.sm },
 
   seatGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  seat: { minHeight: 92, paddingHorizontal: 3, paddingTop: 12, paddingBottom: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  seat: { minHeight: 82, paddingHorizontal: 3, paddingTop: 10, paddingBottom: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: 1 },
   seatInitial: { width: '22%' },
   seatSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
   seatDead: { backgroundColor: colors.surface, borderStyle: 'dashed', borderColor: colors.line },
@@ -318,11 +318,12 @@ export const kit = StyleSheet.create({
 
   tabBarWrap: { width: '100%', alignSelf: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.lineSoft, backgroundColor: colors.bgSoft },
   tabBar: { flexDirection: 'row', backgroundColor: colors.bgSoft, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
-  tabItem: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 2, paddingVertical: spacing.sm },
+  tabItem: { flex: 1, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2, paddingVertical: spacing.sm },
   tabIndicator: { position: 'absolute', top: 0, left: 0, width: 20, height: 2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, backgroundColor: colors.accent },
   tabLabel: { fontSize: 11, lineHeight: 17, textAlign: 'center', fontWeight: '500', color: colors.textTertiary },
   tabLabelActive: { color: colors.accent },
-  tabHint: { fontSize: 11, textAlign: 'center', color: colors.textTertiary },
+  tabBadge: { position: 'absolute', top: 5, right: 10, minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHigh },
+  tabBadgeText: { fontSize: 10, lineHeight: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'], fontWeight: '600' },
   listRow: { flexDirection: 'row', alignItems: 'center', minHeight: 64, paddingVertical: spacing.md, gap: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.lineSoft },
   rowDisabled: { opacity: 0.4 },
   rowValue: { ...type.footnote, fontSize: 13, maxWidth: '36%', textAlign: 'right', color: colors.textTertiary },

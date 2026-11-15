@@ -109,6 +109,38 @@ describe('native motion interaction safeguards', () => {
     expect(animations).toHaveLength(2);
   });
 
+  it('uses a short vertical fade for peer tab changes instead of horizontal navigation', async () => {
+    function Probe({ page, direction }: { page: string; direction: number }) {
+      return <Native.Animated.View testID="tab" style={motion.usePageEnter(page, direction, 'tab')} />;
+    }
+    const tree = (page: string, direction: number) => <motion.MotionProvider><Probe page={page} direction={direction} /></motion.MotionProvider>;
+    act(() => { renderer = TestRenderer.create(tree('host', 1)); });
+    await settlePreference(false);
+    act(() => renderer?.update(tree('seats', -1)));
+
+    expect(animations).toHaveLength(1);
+    expect(animations[0].config).toMatchObject({ toValue: 1, duration: motion.motionTiming.tab, useNativeDriver: true });
+    const style = renderer!.root.findByProps({ testID: 'tab' }).props.style;
+    expect(style.transform.some((item: Record<string, unknown>) => 'translateX' in item)).toBe(false);
+    expect(style.transform.some((item: Record<string, unknown>) => 'translateY' in item)).toBe(true);
+  });
+
+  it('bridges host stage changes with a restrained vertical fade', async () => {
+    function Probe({ stage }: { stage: string }) {
+      return <Native.Animated.View testID="stage" style={motion.useStageReveal(stage)} />;
+    }
+    const tree = (stage: string) => <motion.MotionProvider><Probe stage={stage} /></motion.MotionProvider>;
+    act(() => { renderer = TestRenderer.create(tree('wolves')); });
+    await settlePreference(false);
+    act(() => renderer?.update(tree('seer')));
+
+    expect(animations).toHaveLength(1);
+    expect(animations[0].config).toMatchObject({ toValue: 1, duration: motion.motionTiming.stage, useNativeDriver: true });
+    const style = renderer!.root.findByProps({ testID: 'stage' }).props.style;
+    expect(style.opacity).toBeDefined();
+    expect(style.transform[0].translateY).toBeDefined();
+  });
+
   it('keeps page changes, sheet closure and presses immediate with reduced motion', async () => {
     let sheetPresent = false;
     const onPress = jest.fn();
@@ -138,7 +170,7 @@ describe('native motion interaction safeguards', () => {
     const button = renderer!.root.findByType(motion.MotionPressable).findAll(node => node.type !== motion.MotionPressable && typeof node.props.onPressIn === 'function')[0];
     act(() => button.props.onPressIn({}));
     expect(animations).toHaveLength(1);
-    expect(animations[0].config).toMatchObject({ toValue: 0.98, useNativeDriver: true });
+    expect(animations[0].config).toMatchObject({ toValue: 0.985, useNativeDriver: true });
     act(() => button.props.onPress({}));
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(onPressIn).toHaveBeenCalledTimes(1);
