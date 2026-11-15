@@ -9,6 +9,7 @@ import { ROLES, isWolf } from '../../game/roles';
 import type { hostingSupport } from '../../game/support-policy';
 import type { ResolvedTableRules } from '../../game/table-rules';
 import type { Role, Rules } from '../../game/types';
+import { shouldKeepDeadCalls } from '../../game/flow';
 import { Button, Chip, Divider, InlineError } from '../kit';
 import { Icon } from '../Icon';
 import { boardRoleList } from '../labels';
@@ -92,6 +93,47 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
       <Text accessibilityRole="header" style={type.title}>先定好本桌规则</Text>
       <Text style={type.footnote}>按今晚实际玩法调整。这里是本桌约定，预设不代表所有线下店和赛事的统一规则。开局后按已确认设置主持。</Text>
       <View style={styles.group}>
+        <Text style={type.caption}>开局节奏与放逐记录</Text>
+        <ChoiceRow
+          label="身份确认"
+          value={rules.flow?.identityCheck ?? 'after-deal'}
+          options={[
+            { label: '发牌后看牌', value: 'after-deal' },
+            { label: '天黑逐人确认', value: 'at-nightfall' },
+          ]}
+          onChange={identityCheck => onSetRules({
+            ...rules,
+            flow: { ...rules.flow, identityCheck: identityCheck as NonNullable<Rules['flow']>['identityCheck'] },
+          })}
+        />
+        <Text style={type.footnote}>选“天黑逐人确认”后，开局先按座位确认身份，全部完成才进入第一夜。</Text>
+        <Divider />
+        <ChoiceRow
+          label="放逐记录"
+          value={table.exileRecord}
+          options={[
+            { label: '逐人计票', value: 'detailed' },
+            { label: '快速记录结果', value: 'quick' },
+          ]}
+          onChange={exileRecord => onSetRules({
+            ...rules,
+            table: { ...rules.table, exileRecord: exileRecord as 'detailed' | 'quick' },
+          })}
+        />
+        <Text style={type.footnote}>快速记录直接选择被票出的座位，不再逐人录票；死亡技能、遗言、警徽和胜负仍正常处理。</Text>
+        <Divider />
+        <ChoiceRow
+          label="出局角色夜间口播"
+          value={shouldKeepDeadCalls(rules) ? 'keep' : 'skip'}
+          options={[{ label: '默认保留', value: 'keep' }, { label: '跳过', value: 'skip' }]}
+          onChange={keepDeadCalls => onSetRules({
+            ...rules,
+            flow: { ...rules.flow, keepDeadCalls: keepDeadCalls === 'keep' },
+          })}
+        />
+        <Text style={type.footnote}>默认保留出局角色的空唤醒口播，避免用流程省略暴露谁已出局。主持台只看台词，不录入行动。</Text>
+      </View>
+      <View style={styles.group}>
         <Text style={type.caption}>胜负与警长</Text>
         <ToggleRow label="开启警长竞选" value={rules.sheriff} onChange={v => onSetRules({ ...rules, sheriff: v })} />
         <Divider />
@@ -139,8 +181,10 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
             <ChoiceRow label="警长平票" value={table.sheriffTie} options={[{ label: 'PK 一轮', value: 'pk' }, { label: '直接流失警徽', value: 'none' }]} onChange={v => onSetRules({ ...rules, table: { ...rules.table, sheriffTie: v as 'pk' | 'none' } })} />
             <Divider />
           </> : null}
-          <ChoiceRow label="放逐平票" value={table.exileTie} options={[{ label: 'PK 一轮', value: 'pk' }, { label: '本轮无人出局', value: 'none' }]} onChange={v => onSetRules({ ...rules, table: { ...rules.table, exileTie: v as 'pk' | 'none' } })} />
-          <Text style={type.footnote}>选择 PK 时最多再投一轮；再次平票则警徽流失或无人出局。全员弃票不进入 PK。</Text>
+          {table.exileRecord === 'quick' ? <Text style={type.footnote}>快速放逐只记录最终结果，不计算平票或 PK；本局不会播报放逐 PK 计时。</Text> : <>
+            <ChoiceRow label="放逐平票" value={table.exileTie} options={[{ label: 'PK 一轮', value: 'pk' }, { label: '本轮无人出局', value: 'none' }]} onChange={v => onSetRules({ ...rules, table: { ...rules.table, exileTie: v as 'pk' | 'none' } })} />
+            <Text style={type.footnote}>选择 PK 时最多再投一轮；再次平票则警徽流失或无人出局。全员弃票不进入 PK。</Text>
+          </>}
           {hasGuard ? <>
             <Divider />
             <ToggleRow label="允许守卫连续守同一人" value={table.guardRepeat} onChange={guardRepeat => onSetRules({ ...rules, table: { ...rules.table, guardRepeat } })} />
@@ -148,7 +192,7 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
         </View>
         <View style={styles.group}>
           <View style={styles.rowBetween}><Text style={type.headline}>主持流程</Text><Chip>{rules.flow ? '我的设置' : '板子默认'}</Chip></View>
-          <Text style={type.footnote}>夜间行动顺序 · 自定义主持词 · 每人 {rules.speechSeconds} 秒{supportedRules.flow?.manualDawn ? ' · 天亮手动复核' : ''}{supportedRules.flow?.manualVictory ? ' · 主持人判定结束' : ''}</Text>
+          <Text style={type.footnote}>夜间行动顺序 · 自定义主持词 · 每人 {rules.speechSeconds} 秒{supportedRules.flow?.identityCheck === 'at-nightfall' ? ' · 天黑逐人确认身份' : ' · 发牌后自行看牌'}{supportedRules.flow?.manualDawn ? ' · 天亮手动复核' : ''}{supportedRules.flow?.manualVictory ? ' · 主持人判定结束' : ''}</Text>
           <Button title="自定义主持流程" variant="secondary" onPress={onOpenFlow} />
         </View>
         <View style={styles.group}>
@@ -199,7 +243,7 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
         {thirdCount ? <Chip>第三方 {thirdCount}</Chip> : null}
         <Chip>{board.name}</Chip>
       </View>
-      <Text style={type.footnote}>姓名可以不填。点击身份可与另一座位互换，板子的角色和人数保持一致。身份默认对玩家隐藏，主持台可临时查看。</Text>
+      <Text style={type.footnote}>姓名可以不填。点击身份可与另一座位互换，板子的角色和人数保持一致。身份默认对玩家隐藏，主持台可临时查看。{supportedRules.flow?.identityCheck === 'at-nightfall' ? '开始后将先按座位逐人确认身份，全部确认完才进入第一夜。' : '开始主持后直接进入第一夜。'}</Text>
       <Button title="随机分配身份" variant="secondary" onPress={onShuffle} />
       {deal && deal.boardId === board.id ? <View style={[styles.group, styles.hostNotice]}>
         <Text accessibilityRole="header" style={type.headline}>底牌 · 仅主持人可见</Text>

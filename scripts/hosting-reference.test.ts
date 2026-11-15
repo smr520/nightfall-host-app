@@ -35,8 +35,10 @@ describe('hosting process reference', () => {
     expect(game.day).toBe(2);
     expect(game.stage).toBe('wolves');
     expect(game.nightCalls).toEqual(expect.arrayContaining(['miracle-merchant', 'lone-girl', 'seer']));
-    expect(hostingProgress(game).next).toBe('女巫行动');
+    expect(hostingProgress(game).next).toBe('预言家行动');
     game = applyAction(game, { type: 'wolves', target: null });
+    expect(game.stage).toBe('seer');
+    game = applyAction(game, { type: 'skip-night', reason: '行动角色已出局' });
     expect(game.stage).toBe('witch');
     expect(hostingProgress(game).next).toBe('天亮核对');
   });

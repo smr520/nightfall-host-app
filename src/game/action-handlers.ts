@@ -17,6 +17,7 @@ export function createActionHandlers(ctx: ActionContext) {
       case 'seer': applySeer(g, action); break;
       case 'witch': applyWitch(g, action); break;
       case 'call': applyCall(g, action); break;
+      case 'confirm-identity': applyConfirmIdentity(g, action); break;
       case 'dance': applyDance(g, action); break;
       case 'borrow': applyBorrow(g, action); break;
       case 'hunt': applyHunt(g); break;
@@ -29,6 +30,7 @@ export function createActionHandlers(ctx: ActionContext) {
       case 'ballot': applyBallot(g, action); break;
       case 'ballots': applyBallots(g, action); break;
       case 'count': applyCount(g); break;
+      case 'exile-result': applyExileResult(g, action); break;
       case 'start-exile': applyStartExile(g); break;
       case 'next-night': applyNextNight(g); break;
       case 'hunter': death.hunter(g, action); break;
@@ -213,6 +215,19 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.nextNightCall(g, call);
   }
 
+  function applyConfirmIdentity(g: Game, action: ActionOf<'confirm-identity'>) {
+    ctx.requireStage(g, 'identity-check');
+    ctx.player(g, action.seat);
+    const confirmed = g.identityConfirmed ?? [];
+    ctx.demand(!confirmed.includes(action.seat), `${action.seat} 号身份已经确认`);
+    const next = [...confirmed, action.seat].sort((left, right) => left - right);
+    g.identityConfirmed = next;
+    ctx.log(g, `${action.seat} 号完成身份确认`, `身份确认：${action.seat} 号`);
+    if (next.length !== g.players.length) return;
+    ctx.log(g, '全部玩家身份确认完毕，开始第一夜', '身份确认完成，开始第一夜');
+    ctx.nextNightCall(g, null);
+  }
+
   function applyDance(g: Game, action: ActionOf<'dance'>) {
     ctx.requireStage(g, 'dancer');
     ctx.demand(ctx.actor(g, 'dancer'), '舞者已出局，本夜无需共舞');
@@ -352,6 +367,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applyBallot(g: Game, action: ActionOf<'ballot'>) {
     ctx.requireStage(g, 'sheriff-vote', 'exile-vote');
+    ctx.demand(g.vote?.kind !== 'exile' || tableRules(g.rules).exileRecord !== 'quick', '本轮使用快速放逐，请直接记录被票出者');
     ctx.demand(g.vote && g.vote.voters.includes(action.voter), '该玩家没有本轮投票权');
     ctx.demand(action.target === null || g.vote!.candidates.includes(action.target), '只能投给本轮候选人');
     const previous = g.vote!.ballots[action.voter];
@@ -363,6 +379,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applyBallots(g: Game, action: ActionOf<'ballots'>) {
     ctx.requireStage(g, 'sheriff-vote', 'exile-vote');
+    ctx.demand(g.vote?.kind !== 'exile' || tableRules(g.rules).exileRecord !== 'quick', '本轮使用快速放逐，请直接记录被票出者');
     ctx.demand(Array.isArray(action.voters) && action.voters.length > 0, '请至少选择一名投票人');
     ctx.demand(new Set(action.voters).size === action.voters.length, '投票人名单重复');
     action.voters.forEach(voter => ctx.demand(g.vote && g.vote.voters.includes(voter), `${voter} 号没有本轮投票权`));
@@ -379,6 +396,7 @@ export function createActionHandlers(ctx: ActionContext) {
   function applyCount(g: Game) {
     ctx.requireStage(g, 'sheriff-vote', 'exile-vote');
     const v = g.vote!;
+    ctx.demand(v.kind !== 'exile' || tableRules(g.rules).exileRecord !== 'quick', '本轮使用快速放逐，请直接记录被票出者');
     ctx.demand(v.voters.every(n => Object.prototype.hasOwnProperty.call(v.ballots, n)), '还有未录入的投票，请明确选择弃票或目标');
     const totals = ctx.tally(g);
     const max = Math.max(0, ...totals.map(t => t.votes));
@@ -406,11 +424,29 @@ export function createActionHandlers(ctx: ActionContext) {
     }
   }
 
+  function applyExileResult(g: Game, action: ActionOf<'exile-result'>) {
+    ctx.requireStage(g, 'exile-vote');
+    const vote = g.vote;
+    ctx.demand(vote?.kind === 'exile', '当前不是放逐记录');
+    ctx.demand(tableRules(g.rules).exileRecord === 'quick', '本局使用逐人计票，不能直接记录放逐结果');
+    ctx.demand(action.target === null || vote!.candidates.includes(action.target), '只能记录本轮候选人为放逐结果');
+    if (action.target !== null) {
+      ctx.exile(g, action.target);
+      return;
+    }
+    ctx.log(g, '本轮无人被放逐', '本轮无人被放逐');
+    ctx.resolveDelayedDeaths(g);
+    g.resume = 'night';
+    ctx.advance(g);
+  }
+
   function applyStartExile(g: Game) {
     ctx.requireStage(g, 'discussion');
-    g.vote = ctx.makeVote(g, 'exile', ctx.alive(g).filter(p => !p.exposed).map(p => p.seat));
+    const vote = ctx.makeVote(g, 'exile', ctx.alive(g).filter(p => !p.exposed).map(p => p.seat));
+    g.vote = tableRules(g.rules).exileRecord === 'quick' ? { ...vote, voters: [], ballots: {} } : vote;
     g.stage = 'exile-vote';
-    ctx.log(g, '开始放逐投票', '开始放逐投票');
+    const quick = tableRules(g.rules).exileRecord === 'quick';
+    ctx.log(g, quick ? '开始快速放逐记录' : '开始放逐投票', quick ? '开始快速放逐记录' : '开始放逐投票');
   }
 
   function applyNextNight(g: Game) {

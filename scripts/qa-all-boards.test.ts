@@ -20,6 +20,8 @@ const matrixCoverage = {
   specialNightCalls: new Set<NightCall>(),
   lastWords: 0,
   manualDawn: 0,
+  identityCheck: 0,
+  quickExile: 0,
   explicitDeadlockEnds: 0,
 };
 
@@ -73,7 +75,8 @@ function rulesFor(scenario: Scenario, roles: readonly Role[]): Rules {
           explode: true,
         },
       }
-      : undefined,
+      : scenario.variant === 3 ? { identityCheck: 'at-nightfall' } : undefined,
+    ...(scenario.variant === 3 ? { table: { exileRecord: 'quick' as const } } : {}),
   };
   return withSupportDefaults(rulesForBoard(base, scenario.board), roles);
 }
@@ -213,6 +216,13 @@ function simulate(scenario: Scenario): Game {
     }
 
     switch (game.stage) {
+      case 'identity-check': {
+        matrixCoverage.identityCheck += 1;
+        const next = game.players.find(player => !(game.identityConfirmed ?? []).includes(player.seat));
+        if (!next) throw new Error(`${label}: identity confirmation has no remaining seat`);
+        game = act(game, { type: 'confirm-identity', seat: next.seat }, `${label} op=${operations}`);
+        break;
+      }
       case 'dawn':
         if (game.rules.flow?.manualDawn) {
           matrixCoverage.manualDawn += 1;
@@ -240,6 +250,11 @@ function simulate(scenario: Scenario): Game {
       case 'exile-vote': {
         const vote = game.vote;
         if (!vote) throw new Error(`${label}: missing vote at ${game.stage}`);
+        if (vote.kind === 'exile' && game.rules.table?.exileRecord === 'quick') {
+          matrixCoverage.quickExile += 1;
+          game = act(game, { type: 'exile-result', target: random.pick(vote.candidates) ?? null }, `${label} op=${operations}`);
+          break;
+        }
         if (!vote.voters.length) {
           game = act(game, { type: 'count' }, `${label} op=${operations}`);
           break;
@@ -316,11 +331,11 @@ function simulate(scenario: Scenario): Game {
 
 describe('complete interaction matrix for every published board', () => {
   const scenarios = BOARD_LIBRARY.flatMap((board, index) => (
-    [0, 1, 2].map(variant => scenarioFor(board, index, variant))
+    [0, 1, 2, 3].map(variant => scenarioFor(board, index, variant))
   ));
 
   it('covers the whole public board library', () => {
-    expect(scenarios).toHaveLength(93);
+    expect(scenarios).toHaveLength(124);
     expect(new Set(scenarios.map(scenario => scenario.board.id)).size).toBe(31);
   });
 
@@ -348,6 +363,8 @@ describe('complete interaction matrix for every published board', () => {
     ]));
     expect(matrixCoverage.lastWords).toBeGreaterThan(20);
     expect(matrixCoverage.manualDawn).toBeGreaterThan(20);
+    expect(matrixCoverage.identityCheck).toBeGreaterThan(20);
+    expect(matrixCoverage.quickExile).toBeGreaterThan(20);
     expect(matrixCoverage.explicitDeadlockEnds).toBeLessThan(10);
   });
 });

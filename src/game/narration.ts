@@ -1,7 +1,8 @@
-import { callIsActive, getNightAnnouncement, knifeActors, tally } from './engine';
+import { callActorStatus, callIsActive, getNightAnnouncement, knifeActors, tally } from './engine';
 import { isRole, isWolf, ROLES } from './roles';
 import type { Game, Stage } from './types';
 import { tableRules } from './table-rules';
+import { shouldKeepDeadCalls } from './flow';
 import { TREASURE_RESERVE_PREFIX } from './jingcheng-draw';
 
 export type NarrationContext = { selected?: number | null; activeVoter?: number | null; speaker?: number | null; signup?: number[]; pkSpeaking?: boolean; voteMode?: 'individual' | 'group'; batchVoters?: number[]; editingVoter?: number | null };
@@ -90,15 +91,18 @@ function nightSpeech(game: Game): string {
     default: action = '请用手势示意今晚的行动。';
   }
   const firstCall = game.nightCalls.find(call => callIsActive(game, call));
-  const opening = game.stage === firstCall ? '天黑了，请所有玩家闭眼。' : '';
+  const identityOpenedNight = game.day === 1 && game.rules.flow?.identityCheck === 'at-nightfall';
+  const opening = game.stage === firstCall && !identityOpenedNight ? '天黑了，请所有玩家闭眼。' : '';
   return `${opening}${name}请睁眼。${action}确认完毕，${name}请闭眼。`;
 }
 
 function nightPrivateNote(game: Game, selected: number | null): string {
   const role = game.stage === 'wolves' ? 'wolf' : game.stage;
   if (!isRole(role)) return '';
+  const status = callActorStatus(game, game.stage === 'wolves' ? 'wolves' : role);
   const actors = game.stage === 'wolves' ? knifeActors(game) : game.players.filter(player => player.alive && player.role === role);
-  if (!actors.length) return `仅主持人核对。本角色已出局，${game.rules.flow?.keepDeadCalls ? '按赛前设置照常念完睁眼、行动、闭眼台词，避免通过省略流程暴露身份。' : '本夜无需行动。'}无需选择目标，点击下方按钮继续。`;
+  if (!status.hasActor) return `仅主持人核对。本角色已出局，${shouldKeepDeadCalls(game.rules) ? '按赛前设置照常念完睁眼、行动、闭眼台词，避免通过省略流程暴露身份。' : '本夜无需行动。'}无需选择目标，点击下方按钮继续。`;
+  if (status.blockedByFear) return '仅主持人核对。本角色仍存活，但本夜被噩梦之影恐惧，不能行动。公开台词仍照常念完，避免通过流程判断恐惧目标；无需选择目标，点击下方按钮继续。';
   let note = `仅主持人核对。本步行动座位：${seatList(actors.map(player => player.seat)) || '无存活角色'}。`;
   if (selected !== null) {
     note += `已选目标：${numbered(selected)}。`;
@@ -141,6 +145,16 @@ function voteNarration(game: Game, context: NarrationContext, selected: number |
   const kind = game.stage === 'sheriff-vote' ? '警长' : '放逐';
   if (!vote) return { headline: `等待${kind}候选名单`, spoken: `现在进入${kind}投票。候选名单尚未确定，请稍候。`, privateNote: '仅主持人核对：当前尚无投票数据。' };
   const candidates = seatList(vote.candidates);
+  if (vote.kind === 'exile' && tableRules(game.rules).exileRecord === 'quick') {
+    const target = selected !== null && vote.candidates.includes(selected) ? selected : null;
+    return {
+      headline: target === null ? '谁被票出？' : `确认 ${numbered(target)}被放逐`,
+      spoken: target === null
+        ? `本轮放逐采用快速记录。请主持人直接点选被票出的座位，无需逐人录入每一票；确认后仍会正常处理遗言、出局技能、警徽和胜负。`
+        : `请确认 ${numbered(target)}为本轮被放逐玩家。确认后直接进入出局结算。`,
+      privateNote: '仅主持人核对：快速记录只省略逐票录入，不省略死亡后果。无人出局时请使用单独的“本轮无人出局”操作。',
+    };
+  }
   if (context.pkSpeaking && vote.round > 1) {
     const speaker = context.speaker != null && vote.candidates.includes(context.speaker) ? context.speaker : null;
     const headline = speaker !== null ? `请 ${numbered(speaker)}玩家进行 PK 发言` : `${candidates}进行 PK 发言`;
@@ -200,7 +214,23 @@ export function hostNarration(game: Game, fallback: string, context: NarrationCo
   const signup = context.signup ?? game.signup;
   let result: HostNarration;
 
-  if (night) {
+  if (stage === 'identity-check') {
+    const confirmed = game.identityConfirmed ?? [];
+    const next = game.players.find(player => !confirmed.includes(player.seat));
+    const chosen = context.selected != null && game.players.some(player => player.seat === context.selected && !confirmed.includes(context.selected))
+      ? context.selected
+      : next?.seat ?? null;
+    const player = chosen === null ? undefined : game.players.find(item => item.seat === chosen);
+    result = {
+      headline: chosen === null ? '身份确认已完成' : `请 ${numbered(chosen)}确认身份`,
+      spoken: chosen === null
+        ? '所有玩家身份已经确认。请主持人继续进入第一夜。'
+        : `天黑了，请所有玩家闭眼。请 ${numbered(chosen)}玩家睁眼确认自己的身份牌，确认无误后闭眼。`,
+      privateNote: player
+        ? `仅主持人核对：${numbered(player.seat)}身份为${ROLES[player.role].name}。公开口播不要读出身份。`
+        : '仅主持人核对：身份确认进度已保存。',
+    };
+  } else if (night) {
     const role = stage === 'wolves' ? 'wolf' : stage;
     result = { headline: `${isRole(role) ? ROLES[role].name : '夜间角色'}行动`, spoken: nightSpeech(game), privateNote: nightPrivateNote(game, selected) };
   } else if (stage === 'dawn' || stage === 'dawn-announcement') {

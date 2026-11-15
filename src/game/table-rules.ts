@@ -6,6 +6,7 @@ export type ResolvedTableRules = {
   guardRepeat: boolean;
   sheriffTie: 'pk' | 'none';
   exileTie: 'pk' | 'none';
+  exileRecord: 'detailed' | 'quick';
   notes: string;
 };
 
@@ -20,6 +21,7 @@ export function tableRules(rules: Pick<Rules, 'table'> | TableRules | undefined)
     guardRepeat: value?.guardRepeat === true,
     sheriffTie: value?.sheriffTie === 'none' ? 'none' : 'pk',
     exileTie: value?.exileTie === 'none' ? 'none' : 'pk',
+    exileRecord: value?.exileRecord === 'quick' ? 'quick' : 'detailed',
     notes: typeof value?.notes === 'string' ? value.notes : '',
   };
 }
@@ -34,6 +36,7 @@ export function validateTableRules(value: unknown): value is TableRules | undefi
   if (table.guardRepeat !== undefined && typeof table.guardRepeat !== 'boolean') return false;
   if (table.sheriffTie !== undefined && table.sheriffTie !== 'pk' && table.sheriffTie !== 'none') return false;
   if (table.exileTie !== undefined && table.exileTie !== 'pk' && table.exileTie !== 'none') return false;
+  if (table.exileRecord !== undefined && table.exileRecord !== 'detailed' && table.exileRecord !== 'quick') return false;
   if (table.notes !== undefined && (typeof table.notes !== 'string' || table.notes.length > MAX_NOTES_LENGTH)) return false;
   return true;
 }

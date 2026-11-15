@@ -51,7 +51,7 @@ describe('personalized offline hosting', () => {
     expect(spoken).toContain('守卫可以连续守同人');
     expect(spoken).toContain('不 PK，警徽流失');
     expect(spoken).toContain('不 PK，无人出局');
-    expect(spoken).toContain('保留夜间口播，不录入行动');
+    expect(spoken).toContain('默认保留夜间口播，不录入行动');
     expect(spoken).toContain('仅首夜和放逐有遗言');
     expect(spoken).not.toMatch(/\d+\s*号.*狼人/);
     app.press('完成宣读');

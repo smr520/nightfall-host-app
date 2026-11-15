@@ -5,11 +5,13 @@ import { reconcileNightOrder, resolveNightOrder } from '../../game/flow';
 import { ROLES, ROLE_IDS } from '../../game/roles';
 import { isValidSpeechSeconds, MAX_SPEECH_SECONDS, MIN_SPEECH_SECONDS, speechSecondsForRules, SPEECH_LABELS, type SpeechKind } from '../../game/speech';
 import type { HostingFlow, LastWordsPolicy, NightCall, Role, Rules, Stage } from '../../game/types';
+import { shouldKeepDeadCalls } from '../../game/flow';
 import { colors, radius, spacing, type } from '../../theme';
 import { Button, Card, InlineError, SwitchRow } from '../kit';
+import { ChoiceRow } from './Controls';
 
 const fixedStages: { id: Stage; label: string }[] = [
-  { id: 'dawn', label: '天亮核对' }, { id: 'dawn-announcement', label: '公布结果' }, { id: 'sheriff-signup', label: '警长竞选' },
+  { id: 'identity-check', label: '身份确认' }, { id: 'dawn', label: '天亮核对' }, { id: 'dawn-announcement', label: '公布结果' }, { id: 'sheriff-signup', label: '警长竞选' },
   { id: 'sheriff-vote', label: '警长投票' }, { id: 'discussion', label: '白天发言' }, { id: 'exile-vote', label: '放逐投票' },
   { id: 'last-words', label: '出局遗言' }, { id: 'hunter', label: '猎人技能' }, { id: 'shot', label: '出局技能' },
   { id: 'link', label: '跟随出局' }, { id: 'badge', label: '警徽处理' },
@@ -22,6 +24,7 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
   const [error, setError] = useState('');
   const [duration, setDuration] = useState(String(rules.speechSeconds));
   const patch = (next: Partial<HostingFlow>) => onChange({ ...rules, flow: { ...rules.flow, ...next } });
+  const patchTable = (next: NonNullable<Rules['table']>) => onChange({ ...rules, table: { ...rules.table, ...next } });
   const patchLastWords = (next: Partial<LastWordsPolicy>) => patch({
     lastWords: { ...rules.flow?.lastWords, ...next },
   });
@@ -33,6 +36,7 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
     catch (failure) { setError(failure instanceof Error ? failure.message : '请检查行动顺序'); }
   };
   const relevantStages = fixedStages.filter(({ id }) => {
+    if (id === 'identity-check') return rules.flow?.identityCheck === 'at-nightfall';
     if (id === 'sheriff-signup' || id === 'sheriff-vote' || id === 'badge') return rules.sheriff;
     if (id === 'hunter') return roles.includes('hunter');
     if (id === 'shot') return roles.some(role => role !== 'hunter' && ROLES[role].onDeath === 'shot');
@@ -44,6 +48,36 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
   const activeScriptStage = scriptStages.some(item => item.id === scriptStage) ? scriptStage : 'discussion';
   return <View style={styles.root}>
     <Card style={styles.group}>
+      <Text style={type.headline}>开局与白天节奏</Text>
+      <Text style={type.footnote}>这三项按本桌习惯设置，会随方案保存。不同桌不必套同一套现场节奏。</Text>
+      <ChoiceRow
+        label="身份确认"
+        value={rules.flow?.identityCheck ?? 'after-deal'}
+        options={[
+          { label: '发牌后看牌', value: 'after-deal' },
+          { label: '天黑逐人确认', value: 'at-nightfall' },
+        ]}
+        onChange={identityCheck => patch({ identityCheck: identityCheck as NonNullable<HostingFlow['identityCheck']> })}
+      />
+      <Text style={type.footnote}>“天黑逐人确认”会先停在一个可撤回的确认页，全部座位确认完才进入第一夜。</Text>
+      <ChoiceRow
+        label="放逐记录"
+        value={rules.table?.exileRecord ?? 'detailed'}
+        options={[
+          { label: '逐人计票', value: 'detailed' },
+          { label: '快速记录结果', value: 'quick' },
+        ]}
+        onChange={exileRecord => patchTable({ exileRecord: exileRecord as NonNullable<NonNullable<Rules['table']>['exileRecord']> })}
+      />
+      <Text style={type.footnote}>快速记录只点最终被票出的人，不再逐人录票；白痴、遗言、出局技能、警徽和胜负仍照常处理。</Text>
+      <SwitchRow
+        label="保留已出局角色的夜间口播"
+        hint="默认开启：角色出局后仍照常念睁眼、行动、闭眼台词，避免通过省略流程暴露身份；点继续即可，不录入目标。关闭后才跳过后续夜间环节。"
+        value={shouldKeepDeadCalls(rules)}
+        onChange={keepDeadCalls => patch({ keepDeadCalls })}
+      />
+    </Card>
+    <Card style={styles.group}>
       <Text style={type.headline}>夜间行动顺序</Text>
       <Text style={type.footnote}>这里只列本局阵容的夜间行动。用上下按钮调整，更换阵容时保留已有顺序并补上新增角色。{roles.includes('witch') ? '女巫在狼人之后用药。' : ''}</Text>
       {order.map((call, index) => <View key={call} style={styles.orderRow}>
@@ -54,7 +88,6 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
       {error ? <InlineError>{error}</InlineError> : null}
     </Card>
     <Card style={styles.group}>
-      <SwitchRow label="保留已出局角色的夜间口播" hint="不翻身份的面杀局可开启：角色出局后仍照常念睁眼、行动、闭眼台词，点继续即可，不录入目标。关闭后跳过该角色的后续夜间环节。" value={rules.flow?.keepDeadCalls === true} onChange={keepDeadCalls => patch({ keepDeadCalls })} />
       <SwitchRow label="天亮时手动确认出局名单" hint="确认出局座位和原因后，再按正常流程处理技能、警徽和胜负。" value={rules.flow?.manualDawn === true} onChange={manualDawn => patch({ manualDawn })} />
       <SwitchRow label="由主持人判定对局结束" hint="特殊胜负或尚未自动处理的技能可开启；完成技能与警徽后，在“更多”中手动结束对局。" value={rules.flow?.manualVictory === true} onChange={manualVictory => patch({ manualVictory })} />
       <Text style={type.headline}>出局遗言</Text>

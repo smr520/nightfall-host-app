@@ -38,7 +38,7 @@ export const MAX_HOSTING_PROFILES = 20;
 
 export const HOSTING_MODES: { key: HostingMode; title: string; description: string; note: string }[] = [
   { key: 'standard', title: '标准流程', description: '警长、夜间行动、投票和复盘都完整记录。', note: '适合固定板子和正式局' },
-  { key: 'quick', title: '熟人快局', description: '减少开场环节，适合连续开局；桌规仍可继续调整。', note: '默认关闭警长' },
+  { key: 'quick', title: '熟人快局', description: '减少开场和录票环节，适合连续开局；桌规仍可继续调整。', note: '默认关闭警长 · 快速记录放逐' },
   { key: 'custom', title: '我的方案', description: '保存自己的阵容和桌规，下次直接使用。', note: '适合不同线下玩法' },
 ];
 
@@ -49,7 +49,7 @@ export const HOST_TEXT_SIZES: { key: HostTextSize; title: string; note: string; 
 ];
 
 export function rulesForHostingMode(mode: HostingMode): Rules {
-  if (mode === 'quick') return { ...DEFAULT_RULES, sheriff: false };
+  if (mode === 'quick') return { ...DEFAULT_RULES, sheriff: false, table: { exileRecord: 'quick' } };
   return { ...DEFAULT_RULES };
 }
 

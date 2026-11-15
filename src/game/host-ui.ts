@@ -34,6 +34,7 @@ export function getStageActionLabel({
   }
   if (stage === 'dawn') return '确认夜间结算';
   if (stage === 'dawn-announcement') return '确认并公布昨夜结果';
+  if (stage === 'identity-check') return '确认当前玩家身份';
   if (stage === 'last-words') return '确认遗言结束';
   if (stage === 'heir') return '确认白泽继承人';
   if (stage === 'sheriff-signup') return '确认上警名单';

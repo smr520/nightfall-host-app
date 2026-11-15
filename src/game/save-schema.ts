@@ -42,6 +42,12 @@ function isValidGameShape(v: unknown, schema: 1 | 2): v is RecordValue & Game {
     if (manualDeaths !== undefined && (!Array.isArray(manualDeaths) || manualDeaths.some(item => !object(item) || !seat(item.seat) || !(DAWN_CAUSES as readonly string[]).includes(item.cause as string)) || new Set(manualDeaths.map(item => (item as RecordValue).seat)).size !== manualDeaths.length || typeof (v.night as RecordValue).manualReason !== 'string' || ((v.night as RecordValue).manualReason as string).trim().length < 2 || v.rules.flow === undefined || !v.rules.flow.manualDawn)) return false;
   }
   if (!nullableSeat(v.lastGuard) || !nullableSeat(v.sheriff) || !object(v.medicine) || !bool(v.medicine.save) || !bool(v.medicine.poison) || !bool(v.sheriffDone) || !bool(v.announcementReady) || !seatList(v.signup) || !oneOf(v.resume, ['discussion', 'night'])) return false;
+  if (v.identityConfirmed !== undefined && !seatList(v.identityConfirmed)) return false;
+  const identityMode = v.rules.flow?.identityCheck;
+  if (v.identityConfirmed !== undefined && identityMode !== 'at-nightfall') return false;
+  if (v.stage === 'identity-check' && (identityMode !== 'at-nightfall' || !Array.isArray(v.identityConfirmed))) return false;
+  if (v.stage === 'identity-check' && (v.identityConfirmed as number[]).length >= v.players.length) return false;
+  if (v.stage !== 'identity-check' && identityMode === 'at-nightfall' && (!Array.isArray(v.identityConfirmed) || v.identityConfirmed.length !== v.players.length)) return false;
   if (!optionalText(v.nightAnnouncement) || !optionalText(v.endReason) || (v.endedAt !== undefined && !finite(v.endedAt)) || (v.winner !== undefined && !oneOf(v.winner, ['good', 'wolf', 'third', 'draw']))) return false;
   if (v.stage === 'ended' && (!v.winner || !finite(v.endedAt))) return false;
   if (schema === 2) {
@@ -59,6 +65,8 @@ function isValidGameShape(v: unknown, schema: 1 | 2): v is RecordValue & Game {
     const vote = v.vote;
     if (!optionalText(vote.result)) return false;
     if (!Object.entries(vote.ballots as RecordValue).every(([voter, target]) => String(Number(voter)) === voter && (vote.voters as number[]).includes(Number(voter)) && (target === null || (vote.candidates as number[]).includes(target as number)))) return false;
+    if (vote.kind === 'exile' && v.rules.table?.exileRecord === 'quick'
+      && (vote.round !== 1 || (vote.voters as number[]).length !== 0 || Object.keys(vote.ballots as RecordValue).length !== 0)) return false;
   }
   if ((v.stage === 'sheriff-vote' || v.stage === 'exile-vote') && (!object(v.vote) || v.vote.kind !== (v.stage === 'sheriff-vote' ? 'sheriff' : 'exile'))) return false;
   if (v.special !== undefined) {

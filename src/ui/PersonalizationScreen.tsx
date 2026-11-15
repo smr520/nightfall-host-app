@@ -3,6 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { colors, radius, spacing, type } from '../theme';
 import { ROLES } from '../game/roles';
 import { tableRules } from '../game/table-rules';
+import { shouldKeepDeadCalls } from '../game/flow';
 import { Button, Chip, Divider, InlineError, Sheet, TopBar } from './kit';
 import { Icon } from './Icon';
 import { MotionPressable as Pressable } from './motion';
@@ -141,7 +142,12 @@ export function PersonalizationScreen({ profiles, selectedProfileId, hostingMode
             </View>
             <Text style={styles.boardName}>{profile.boardName} · {profile.roles.length} 人</Text>
             <Text style={type.footnote}>{sheriff} · {profile.rules.win === 'all' ? '屠城' : '屠边'}</Text>
-            <Text style={type.footnote}>放逐平票{table.exileTie === 'pk' ? ' PK 一轮' : '无人出局'}{profile.rules.flow?.keepDeadCalls ? ' · 保留出局角色夜间口播' : ''}{table.notes ? ' · 有本桌补充约定' : ''}</Text>
+            <Text style={type.footnote}>
+              {table.exileRecord === 'quick' ? '快速放逐记录' : `逐人计票 · 平票${table.exileTie === 'pk' ? ' PK 一轮' : '无人出局'}`}
+              {shouldKeepDeadCalls(profile.rules) ? ' · 默认保留出局角色夜间口播' : ' · 跳过出局角色夜间口播'}
+              {profile.rules.flow?.identityCheck === 'at-nightfall' ? ' · 天黑逐人确认身份' : ''}
+              {table.notes ? ' · 有本桌补充约定' : ''}
+            </Text>
             {profile.rules.flow ? <View style={styles.flowSummary}>
               <Text style={styles.flowLabel}>自定义主持流程{profile.rules.flow.manualDawn ? ' · 手动确认天亮出局' : ''}{profile.rules.flow.manualVictory ? ' · 主持人判定结束' : ''}</Text>
               {nightOrder?.length ? <Text style={type.footnote}>{nightOrder.map(call => call === 'wolves' ? '狼人' : ROLES[call].name).join(' → ')}</Text> : null}

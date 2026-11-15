@@ -4,6 +4,7 @@ import { speechDurationsSummary, speechSecondsForRules } from './speech';
 import { hasLastWordsPolicy, lastWordsPolicyLabels } from './last-words';
 import type { Role, Rules } from './types';
 import { tableRules } from './table-rules';
+import { shouldKeepDeadCalls } from './flow';
 
 export { ROLES, ROLE_IDS };
 export { BOARD_LIBRARY, OFFICIAL_BOARDS, TOURNAMENT_BOARDS, CLASSIC_BOARDS, boardById, boardSeats, isPlayable } from './boards';
@@ -19,10 +20,15 @@ export const BOARDS: Board[] = BOARD_LIBRARY;
 
 export type StageInfo = { title: string; script: string; help: string; short: string };
 
-type FixedStage = 'dawn' | 'dawn-announcement' | 'sheriff-signup' | 'sheriff-vote'
+type FixedStage = 'identity-check' | 'dawn' | 'dawn-announcement' | 'sheriff-signup' | 'sheriff-vote'
   | 'last-words' | 'discussion' | 'exile-vote' | 'hunter' | 'badge' | 'shot' | 'link' | 'heir' | 'ended';
 
 export const STAGES: Record<FixedStage, StageInfo> = {
+  'identity-check': {
+    title: '开局身份确认', short: '确认',
+    script: '天黑了，请所有玩家闭眼。请按座位顺序逐一确认身份牌，确认无误后继续。',
+    help: '按主持人选定的顺序逐人核对；公开口播只读座位，身份只显示在主持端私密提示中。全部确认后才进入第一夜。',
+  },
   dawn: {
     title: '夜晚结算', short: '结算',
     script: '天亮了，请所有玩家睁眼。首日如开启警长竞选，请先完成竞选，暂不公布昨夜结果。',
@@ -113,16 +119,18 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
   return [
     r.sheriff ? `上警 · 警长 ${r.sheriffWeight} 票` : '不上警',
     r.win === 'edge' ? '屠边：狼全灭好人胜；民或神全灭狼人胜' : '屠城：狼全灭好人胜；好人全灭狼人胜',
+    `身份确认：${r.flow?.identityCheck === 'at-nightfall' ? '天黑后按座位逐人确认' : '发牌后玩家自行看牌'}`,
     ...(table.firstNightKnife ? [] : ['首夜狼人只互相确认，不发动击杀']),
     ...medicine,
     ...guard,
     ...(deathRules.length ? [deathRules.join(' · ')] : []),
     r.sheriff ? `首日顺序：${r.sheriffTiming === 'after-announcement' ? '先公布死亡，再竞选' : '先竞选，再公布死亡'}；死亡技能、警徽处理后判胜负` : '首日无警长竞选，确认夜间结果后进入白天',
     ...(r.sheriff ? [`警长平票：${table.sheriffTie === 'pk' ? 'PK 一轮，再平票则警徽流失' : '不 PK，警徽流失'}`] : []),
-    `放逐平票：${table.exileTie === 'pk' ? 'PK 一轮，再平票则无人出局' : '不 PK，无人出局'}`,
+    `放逐记录：${table.exileRecord === 'quick' ? '快速记录最终被票出者，不逐人录票' : '逐人录票并自动处理平票'}`,
+    ...(table.exileRecord === 'quick' ? [] : [`放逐平票：${table.exileTie === 'pk' ? 'PK 一轮，再平票则无人出局' : '不 PK，无人出局'}`]),
     ...(lastWords ? [lastWords] : []),
     ...(r.speechDurations ? [`分阶段计时：${speechDurationsSummary(r)}`] : []),
-    `已出局角色：${r.flow?.keepDeadCalls ? '保留夜间口播，不录入行动' : '跳过后续夜间环节'}`,
+    `已出局角色：${shouldKeepDeadCalls(r) ? '默认保留夜间口播，不录入行动' : '跳过后续夜间环节'}`,
     ...(r.flow?.manualVictory ? ['特殊胜负或未自动处理技能：由主持人核对后，在“更多”中手动确认获胜阵营'] : []),
     ...(table.notes ? [`本桌补充约定（主持人执行）：${table.notes}`] : []),
   ];
@@ -133,7 +141,8 @@ export function openingRulesScript(rules: Rules, roles: Role[]): string {
   const table = tableRules(rules);
   const timing = [`白天正式发言按 ${speechSecondsForRules(rules, 'discussion')} 秒`];
   if (rules.sheriff) timing.push(`警上按 ${speechSecondsForRules(rules, 'sheriff')} 秒`);
-  if (rules.sheriff && table.sheriffTie === 'pk' || table.exileTie === 'pk') {
+  const usesExilePk = table.exileRecord !== 'quick' && table.exileTie === 'pk';
+  if (rules.sheriff && table.sheriffTie === 'pk' || usesExilePk) {
     timing.push(`PK 按 ${speechSecondsForRules(rules, 'pk')} 秒`);
   }
   if (hasLastWordsPolicy(rules)) timing.push(`遗言按 ${speechSecondsForRules(rules, 'lastWords')} 秒`);

@@ -68,7 +68,13 @@ assert(hunterKilledAtDawn.pending.some(item => item.kind === 'hunter'), 'Night d
 let deadNightRoles = createGame('Dead night actors', '12-player', players.map(([name, role]) => ({ name, role })), DEFAULT_RULES);
 deadNightRoles = { ...deadNightRoles, stage: 'wolves', players: deadNightRoles.players.map(player => ({ ...player, alive: !['seer', 'witch'].includes(player.role) })) };
 deadNightRoles = applyAction(deadNightRoles, { type: 'wolves', target: null });
-assertEqual(deadNightRoles.stage, 'dawn', 'Eliminated seer and witch must not keep appearing as actions in later nights.');
+assertEqual(deadNightRoles.stage, 'seer', 'Dead-role night calls must be retained by default.');
+deadNightRoles = applyAction(deadNightRoles, { type: 'skip-night', reason: 'Action role eliminated' });
+assertEqual(deadNightRoles.stage, 'witch', 'The retained empty seer call must continue to the next role.');
+let skippedDeadRoles = createGame('Skipped dead night actors', '12-player', players.map(([name, role]) => ({ name, role })), { ...DEFAULT_RULES, flow: { keepDeadCalls: false } });
+skippedDeadRoles = { ...skippedDeadRoles, stage: 'wolves', players: skippedDeadRoles.players.map(player => ({ ...player, alive: !['seer', 'witch'].includes(player.role) })) };
+skippedDeadRoles = applyAction(skippedDeadRoles, { type: 'wolves', target: null });
+assertEqual(skippedDeadRoles.stage, 'dawn', 'Explicitly disabled dead-role calls must skip eliminated roles.');
 
 const nightConfirmation = getStageActionLabel({ stage: 'wolves', targetRequired: true, selectedTarget: 5, selectedVoter: null, voteRecorded: false });
 assertEqual(nightConfirmation, '确认刀口：5 号', 'Selecting a night target must leave a visible confirm action.');
@@ -114,7 +120,7 @@ assert(redone, 'Redo must produce the ended session.');
 assertEqual(redone.current.stage, 'ended');
 assertEqual(archiveTransition(undone.current, redone.current), 'add');
 
-console.log('regression tests passed: dawn preview/announcement, dead-role night skips, night/vote confirmation, and end/undo/redo history');
+console.log('regression tests passed: dawn preview/announcement, default and explicit dead-role night calls, night/vote confirmation, and end/undo/redo history');
 
 async function verifyPersistenceLatestWins() {
   const queue = createPersistenceQueue();

@@ -10,3 +10,6 @@ coverage/
 dist-test*/
 dist-final/
 build-output/
+release-temp/
+build-export-*/
+build-output-export-*/

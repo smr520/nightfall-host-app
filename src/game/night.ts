@@ -1,22 +1,46 @@
-import { ROLES, isCallScheduled, isWolf, isWolfTeam } from './roles';
+import { ROLES, isCallScheduled, isWolfTeam } from './roles';
 import type { Game, NightCall, Player } from './types';
 import { emptyNight, log } from './shared';
+import { shouldKeepDeadCalls } from './flow';
+
+export type NightCallActorStatus = {
+  hasActor: boolean;
+  canAct: boolean;
+  blockedByFear: boolean;
+};
 
 /** 当前是否被噩梦之影恐惧。 */
 export function isFeared(g: Game, seat: number) {
   return g.night.targets['nightmare'] === seat;
 }
 
-/** 当前可动刀的角色：普通狼队优先；全部出局后由九尾、机械狼或狼阵营盗宝继承刀权。 */
-export function knifeActors(g: Game): Player[] {
-  const feared = g.night.targets['nightmare'];
-  if (feared !== null && feared !== undefined) {
-    const fearedPlayer = g.players.find(p => p.seat === feared && p.alive);
-    if (fearedPlayer && isWolf(fearedPlayer.role)) return [];
-  }
+function knifeCandidates(g: Game): Player[] {
   const team = g.players.filter(p => p.alive && isWolfTeam(p.role));
   if (team.length) return team;
   return g.players.filter(p => p.alive && ROLES[p.role].lateKnife && (p.role !== 'treasure-master' || g.special?.treasure?.camp === 'wolf'));
+}
+
+/** 当前可动刀的角色：普通狼队优先；全部出局后由九尾、机械狼或狼阵营盗宝继承刀权。 */
+export function knifeActors(g: Game): Player[] {
+  const candidates = knifeCandidates(g);
+  const feared = g.night.targets['nightmare'];
+  const blocked = feared !== null && feared !== undefined && candidates.some(player => player.seat === feared);
+  return blocked ? [] : candidates;
+}
+
+/** Distinguish an unavailable dead role from a living role blocked by fear. */
+export function callActorStatus(g: Game, call: NightCall): NightCallActorStatus {
+  const actors = call === 'wolves'
+    ? knifeCandidates(g)
+    : g.players.filter(player => player.alive && player.role === call);
+  const canAct = call === 'wolves'
+    ? knifeActors(g).length > 0
+    : actors.some(player => !isFeared(g, player.seat));
+  return {
+    hasActor: actors.length > 0,
+    canAct,
+    blockedByFear: actors.length > 0 && !canAct,
+  };
 }
 
 export function addMark(g: Game, seat: number) {
@@ -40,14 +64,13 @@ export const nineTailsVoter = (g: Game, seat: number) => g.players.find(p => p.s
 
 /** 夜间行动是否还有存活的执行者；狼刀看当前实际持刀者，被恐惧的角色本夜不能行动。 */
 export function callActorAlive(g: Game, call: NightCall) {
-  if (call === 'wolves') return knifeActors(g).length > 0;
-  return g.players.some(p => p.alive && p.role === call && !isFeared(g, p.seat));
+  return callActorStatus(g, call).canAct;
 }
 
 /** 当前夜里是否仍要唤醒该行动（考虑首夜限定、第 N 夜起和保留空唤醒）。 */
 export function callIsActive(g: Game, call: NightCall) {
   if (!isCallScheduled(call, g.day)) return false;
-  return !!g.rules.flow?.keepDeadCalls || callActorAlive(g, call);
+  return shouldKeepDeadCalls(g.rules) || callActorAlive(g, call);
 }
 
 /** 从当前行动推进到下一个仍需执行的夜间行动 */

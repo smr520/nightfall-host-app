@@ -6,7 +6,8 @@ import { afterSheriff, exile, makeVote, tally } from './day';
 import type { Action, Game } from './types';
 
 export { actor, alive, canVote, goodAlive, seatName, wolvesAlive } from './shared';
-export { callActorAlive, callIsActive, isFeared, knifeActors } from './night';
+export { callActorAlive, callActorStatus, callIsActive, isFeared, knifeActors } from './night';
+export type { NightCallActorStatus } from './night';
 export { getNightAnnouncement, nightDeaths, victory } from './dawn';
 export { tally } from './day';
 export { createGame, validateCounts } from './game-setup';

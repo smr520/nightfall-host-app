@@ -1,6 +1,6 @@
 import { BOARD_LIBRARY, boardSeats } from '../src/game/boards';
 import { DEFAULT_RULES } from '../src/game/config';
-import { applyAction, createGame, nightDeaths } from '../src/game/engine';
+import { applyAction, callActorAlive, createGame, nightDeaths } from '../src/game/engine';
 import { isValidGame } from '../src/game/save-schema';
 import { isWolf } from '../src/game/roles';
 import type { Action, Game, HostingFlow, NightCall, Rules } from '../src/game/types';
@@ -125,6 +125,10 @@ function simulate(scenario: Scenario): Game {
   while (game.stage !== 'ended') {
     if (++steps > 400) throw new Error(`simulation exceeded 400 actions for ${scenario.board} seed ${scenario.seed} at ${game.stage} day ${game.day}`);
     const context = `${scenario.board} seed ${scenario.seed} step ${steps} ${game.stage} day ${game.day}`;
+    if (game.nightCalls.includes(game.stage as NightCall) && !callActorAlive(game, game.stage as NightCall)) {
+      game = runAction(game, { type: 'skip-night', reason: '行动角色已出局' }, context);
+      continue;
+    }
     switch (game.stage) {
       case 'wolves': {
         const target = pickTarget(game, random, player => !isWolf(player.role));

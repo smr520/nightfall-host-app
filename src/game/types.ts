@@ -7,7 +7,7 @@ export type NightCall = Role | 'wolves';
 
 /** 固定阶段 + 夜间角色行动阶段（阶段名即行动 id） */
 export type Stage =
-  | 'dawn' | 'dawn-announcement' | 'last-words' | 'sheriff-signup' | 'sheriff-vote'
+  | 'identity-check' | 'dawn' | 'dawn-announcement' | 'last-words' | 'sheriff-signup' | 'sheriff-vote'
   | 'discussion' | 'exile-vote' | 'hunter' | 'badge' | 'shot' | 'link' | 'heir' | 'ended'
   | NightCall;
 
@@ -72,6 +72,8 @@ export type TableRules = {
   sheriffTie?: 'pk' | 'none';
   /** First-round exile tie handling. */
   exileTie?: 'pk' | 'none';
+  /** Fast mode records only the final exile seat and omits per-voter ballots. */
+  exileRecord?: 'detailed' | 'quick';
   /** Host-facing notes agreed before the game starts. */
   notes?: string;
 };
@@ -85,6 +87,8 @@ export type HostingFlow = {
   manualDawn?: boolean;
   /** Keep a dead role's night call as an explicit empty wake-up for the host. */
   keepDeadCalls?: boolean;
+  /** Whether role verification happens after dealing or after the room closes their eyes. */
+  identityCheck?: 'after-deal' | 'at-nightfall';
   /** Let the host confirm victory instead of ending automatically for standard camps. */
   manualVictory?: boolean;
   /** 各类死亡是否进入独立遗言队列；全部缺省时保持旧流程。 */
@@ -163,6 +167,8 @@ export type Game = {
   stage: Stage;
   /** 本局夜间行动顺序，随角色构成生成 */
   nightCalls: NightCall[];
+  /** 天黑后逐人确认身份时，已经核对完成的座位。 */
+  identityConfirmed?: number[];
   players: Player[];
   rules: Rules;
   night: Night;
@@ -192,6 +198,7 @@ export type Action =
   | { type: 'seer'; target: number | null }
   | { type: 'witch'; save: boolean; poison: number | null }
   | { type: 'call'; callId: string; target: number | null }
+  | { type: 'confirm-identity'; seat: number }
   | { type: 'dawn' }
   | { type: 'set-dawn-deaths'; deaths: { seat: number; cause: Cause }[]; reason: string }
   | { type: 'announce-dawn' }
@@ -200,6 +207,7 @@ export type Action =
   | { type: 'ballot'; voter: number; target: number | null }
   | { type: 'ballots'; voters: number[]; target: number | null }
   | { type: 'count' }
+  | { type: 'exile-result'; target: number | null }
   | { type: 'start-exile' }
   | { type: 'next-night' }
   | { type: 'hunter'; target: number | null }

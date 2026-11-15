@@ -2,7 +2,7 @@ import { resolveNightOrder, validateFlow } from './flow';
 import { ROLES, ROLE_IDS, isVillager, isWolf } from './roles';
 import { isValidSpeechSeconds, validateSpeechDurations } from './speech';
 import { tableRules, validateTableRules } from './table-rules';
-import type { Counts, Game, Role, Rules } from './types';
+import type { Counts, Game, Role, Rules, Stage } from './types';
 import { clone, demand, emptyNight, log } from './shared';
 import { nextNightCall } from './night';
 
@@ -37,16 +37,19 @@ export function createGame(name: string, board: string, players: { name: string;
   demand(rules.flow === undefined || validateFlow(rules.flow, c), '自定义流程无效，请检查夜间顺序和主持词');
   const now = Date.now();
   const nightCalls = resolveNightOrder(c, rules.flow);
+  const identityAtNightfall = rules.flow?.identityCheck === 'at-nightfall';
+  const initialStage: Stage = identityAtNightfall ? 'identity-check' : 'dawn';
   const g: Game = {
     schema: 2, id: `${now}-${Math.random().toString(36).slice(2, 8)}`, name: name.trim() || '线下狼人杀', board,
-    startedAt: now, day: 1, stage: 'dawn', nightCalls, rules: clone(rules),
+    startedAt: now, day: 1, stage: initialStage, nightCalls, ...(identityAtNightfall ? { identityConfirmed: [] } : {}), rules: clone(rules),
     players: players.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 16), seat: i + 1, alive: true, exposed: false })),
     night: emptyNight(), nightAnnouncement: undefined, lastGuard: null, medicine: { save: true, poison: true }, sheriff: null,
     sheriffDone: !rules.sheriff, signup: [], vote: null, pending: [], announcementReady: false, resume: 'discussion', events: [],
     ...(options.treasure ? { special: { treasure: { reserve: [...options.treasure.reserve], camp: options.treasure.camp } } } : {}),
   };
-  nextNightCall(g, null);
+  if (!identityAtNightfall) nextNightCall(g, null);
   log(g, `创建 ${board}，身份已录入`, '对局开始');
+  if (identityAtNightfall) log(g, '已启用天黑后逐人身份确认', '身份确认阶段');
   options.privateNotes?.forEach(note => { if (note.trim()) log(g, note.trim()); });
   return g;
 }

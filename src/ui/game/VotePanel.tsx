@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { tally } from '../../game/engine';
 import type { Action, Game } from '../../game/types';
+import { tableRules } from '../../game/table-rules';
 import type { SpeechClock } from '../../hooks/useSpeechClock';
 import { colors, radius, spacing, type } from '../../theme';
 import { Button, Card, Chip, Divider, SeatGrid, Segmented } from '../kit';
@@ -26,6 +27,22 @@ type Props = {
 export function VotePanel({ game, draft, activeVoter, showRoles, speechClock, patch, doAction }: Props) {
   const vote = game.vote;
   if (!vote) return null;
+  if (vote.kind === 'exile' && tableRules(game.rules).exileRecord === 'quick') return <Card style={styles.panel}>
+    <View style={styles.heading}>
+      <Text style={type.headline}>快速放逐记录</Text>
+      <Text style={type.caption}>不逐人录票</Text>
+    </View>
+    <Text style={type.footnote}>直接点选本轮被票出的座位。确认后会正常处理白痴翻牌、遗言、出局技能、警徽和胜负；本轮无人出局请使用底部单独按钮。</Text>
+    <Text style={type.callout}>谁被票出？</Text>
+    <SeatGrid
+      game={game}
+      selected={draft.selected}
+      onSelect={seat => patch({ selected: draft.selected === seat ? null : seat })}
+      showRoles={showRoles}
+      filter={player => vote.candidates.includes(player.seat)}
+    />
+    <Text style={type.footnote}>快速模式不计算票型、平票或 PK；需要核对票型时，请在赛前改为“逐人计票”。</Text>
+  </Card>;
   const unrecorded = vote.voters.filter(seat => vote.ballots[seat] === undefined);
   const selectedVoter = draft.voter !== null && vote.voters.includes(draft.voter) ? draft.voter : null;
   const editing = selectedVoter !== null && vote.ballots[selectedVoter] !== undefined;

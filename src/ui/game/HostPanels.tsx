@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
-import { alive, seatName } from '../../game/engine';
+import { alive, seatName, type NightCallActorStatus } from '../../game/engine';
 import { canHandOffBadge, winnerLabel } from '../../game/host-ui';
 import { ROLES, isWolf } from '../../game/roles';
 import type { Action, Game, Stage } from '../../game/types';
@@ -63,13 +63,14 @@ export function NightRecords({ game, stage }: { game: Game; stage: Stage }) {
   );
 }
 
-export function WitchPanel({ game, showRoles, draft, patch, actorAlive }: { game: Game; showRoles: boolean; draft: Draft; patch: (next: Partial<Draft>) => void; actorAlive: boolean }) {
+export function WitchPanel({ game, showRoles, draft, patch, actorStatus }: { game: Game; showRoles: boolean; draft: Draft; patch: (next: Partial<Draft>) => void; actorStatus: NightCallActorStatus }) {
   const witch = game.players.find(player => player.alive && player.role === 'witch');
   const selfTarget = game.night.knife !== null && game.night.knife === witch?.seat;
   const selfSaveAllowed = !selfTarget || game.rules.selfSave === 'always' || game.rules.selfSave === 'first' && game.day === 1;
   const canSave = game.medicine.save && game.night.knife !== null && selfSaveAllowed;
   const choosePoison = (poison: number | null) => patch({ poison, selected: poison, ...(poison !== null && !game.rules.doubleMedicine ? { save: false } : {}) });
-  if (!actorAlive) return <Card style={styles.panel}><Text style={type.footnote}>女巫已出局，本夜自动跳过。</Text></Card>;
+  if (!actorStatus.hasActor) return <Card style={styles.panel}><Text style={type.footnote}>女巫已出局，本夜保留空唤醒口播但不录入用药。</Text></Card>;
+  if (actorStatus.blockedByFear) return <Card style={styles.panel}><Text style={type.footnote}>女巫仍存活，但本夜被恐惧，不能使用药品。请照常念完主持台词后继续。</Text></Card>;
   return (
     <Card style={styles.panel}>
       <View style={styles.rowBetween}>

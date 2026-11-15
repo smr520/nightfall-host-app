@@ -3,9 +3,20 @@ import { ROLES } from '../game/roles';
 import { getNightAnnouncement } from '../game/engine';
 import type { Cause, Game, Stage } from '../game/types';
 import type { Board } from '../game/boards';
+import { tableRules } from '../game/table-rules';
 
 export function stageInfo(stage: Stage, game?: Game): StageInfo {
   const customScript = game?.rules.flow?.scripts?.[stage]?.trim() || undefined;
+  if (game && stage === 'identity-check') {
+    const confirmed = game.identityConfirmed ?? [];
+    const next = game.players.find(player => !confirmed.includes(player.seat));
+    return {
+      ...STAGES['identity-check'],
+      script: customScript ?? (next
+        ? `天黑了，请所有玩家闭眼。请 ${next.seat} 号玩家睁眼确认身份，确认无误后闭眼。`
+        : STAGES['identity-check'].script),
+    };
+  }
   if (game && stage === 'dawn-announcement') {
     return { ...STAGES['dawn-announcement'], script: customScript ?? `请所有玩家睁眼。昨夜结果：${game.nightAnnouncement ?? getNightAnnouncement(game)}。`, help: '公开只读出局座位，不念私密预览中的死因或查验。确认后先处理死亡技能与警徽，再核对胜负。' };
   }
@@ -23,6 +34,18 @@ export function stageInfo(stage: Stage, game?: Game): StageInfo {
       ...STAGES['sheriff-vote'],
       script: customScript ?? `${beforeAnnouncement ? '昨夜结果尚未公布。' : '昨夜结果已公布。'}请本轮有资格的警下玩家投票。三、二、一，请投票。`,
       help: `${beforeAnnouncement ? '未公布的夜间死者仍按当前资格参与本轮。' : '已公布的出局玩家不再投票。'}每人记录目标或弃票。平票 PK 一次，再平票警徽流失。`,
+    };
+  }
+  if (game && stage === 'exile-vote') {
+    const quick = tableRules(game.rules).exileRecord === 'quick';
+    return {
+      ...STAGES['exile-vote'],
+      script: customScript ?? (quick
+        ? '发言结束。请确认本轮最终被票出的玩家；快速记录不逐人录票。'
+        : STAGES['exile-vote'].script),
+      help: quick
+        ? '直接选择被票出的座位或本轮无人出局；不计算票型、平票和 PK，但继续处理遗言、出局技能、警徽与胜负。'
+        : STAGES['exile-vote'].help,
     };
   }
   if (game && stage === 'last-words') {
@@ -43,7 +66,7 @@ export function stageInfo(stage: Stage, game?: Game): StageInfo {
 }
 
 export function isNightStageId(stage: Stage): boolean {
-  return stage === 'wolves' || !!ROLES[stage as keyof typeof ROLES]?.night;
+  return stage === 'identity-check' || stage === 'wolves' || !!ROLES[stage as keyof typeof ROLES]?.night;
 }
 
 export function causeLabel(cause?: Cause): string {

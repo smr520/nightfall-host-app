@@ -11,7 +11,8 @@ export type GameInvariantIssue = {
     | 'ineligible-candidate'
     | 'result-without-ended'
     | 'ended-without-result'
-    | 'ended-with-pending';
+    | 'ended-with-pending'
+    | 'invalid-quick-exile';
   message: string;
   seat?: number;
 };
@@ -84,6 +85,10 @@ export function gameInvariantIssues(game: Game): GameInvariantIssue[] {
   const voteIsStillCollecting = game.vote !== null
     && game.vote.result === undefined
     && (game.stage === 'sheriff-vote' || game.stage === 'exile-vote');
+  if (game.vote?.kind === 'exile' && game.rules.table?.exileRecord === 'quick'
+    && (game.vote.round !== 1 || game.vote.voters.length || Object.keys(game.vote.ballots).length)) {
+    issues.push({ code: 'invalid-quick-exile', message: '快速放逐不能保存轮次、投票人或逐人票' });
+  }
   if (game.vote && voteIsStillCollecting) {
     for (const voter of game.vote.voters) {
       const player = bySeat.get(voter);

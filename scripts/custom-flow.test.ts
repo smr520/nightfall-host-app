@@ -64,10 +64,21 @@ describe('custom night order', () => {
   });
 
   it('skips a dead actor without losing later calls in the custom sequence', () => {
+    let game = applyAction(finishNight(fixture({ flow: { nightOrder: [...reversedOrder], keepDeadCalls: false } }), 5), { type: 'dawn' });
+    expect(game.players[4].alive).toBe(false);
+    game = applyAction(game, { type: 'next-night' });
+    // The host explicitly disabled retained dead-role calls.
+    expect(game.stage).toBe('wolves');
+    game = applyAction(game, { type: 'wolves', target: null });
+    expect(game.stage).toBe('witch');
+  });
+
+  it('retains a dead actor as the default empty wake-up without losing later calls', () => {
     let game = applyAction(finishNight(fixture(), 5), { type: 'dawn' });
     expect(game.players[4].alive).toBe(false);
     game = applyAction(game, { type: 'next-night' });
-    // The seer died on the previous night, so that call is skipped.
+    expect(game.stage).toBe('seer');
+    game = applyAction(game, { type: 'skip-night', reason: '行动角色已出局' });
     expect(game.stage).toBe('wolves');
     game = applyAction(game, { type: 'wolves', target: null });
     expect(game.stage).toBe('witch');

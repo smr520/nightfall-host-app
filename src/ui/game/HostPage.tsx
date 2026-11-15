@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
-import { callActorAlive, getNightAnnouncement } from '../../game/engine';
+import { callActorStatus, getNightAnnouncement } from '../../game/engine';
 import { isNightStage } from '../../game/host-ui';
 import { hostingProgress } from '../../game/hosting-reference';
 import { hostNarration, latestPublicOutcome } from '../../game/narration';
@@ -54,9 +54,10 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const night = isNightStage(stage);
   const meta = night && stage !== 'wolves' ? ROLES[stage as keyof typeof ROLES] : null;
   const progress = hostingProgress(game);
-  const actorAlive = night ? callActorAlive(game, stage as NightCall) : true;
+  const actorStatus = night ? callActorStatus(game, stage as NightCall) : { hasActor: true, canAct: true, blockedByFear: false };
   const vote = game.vote;
   const pending = game.pending[0];
+  const identityConfirmed = game.identityConfirmed ?? [];
 
   return (
     <View style={styles.flex}>
@@ -86,6 +87,24 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
           </View>
         ) : null}
         {narration.privateNote ? <View style={styles.privatePrompt}><Text style={styles.privateLabel}>仅主持人看</Text><Text style={[styles.privateText, privateTextStyle]}>{narration.privateNote}</Text></View> : null}
+
+        {stage === 'identity-check' ? (
+          <Card style={styles.panel}>
+            <View style={styles.rowBetween}>
+              <Text style={type.headline}>逐人确认身份</Text>
+              <Text style={type.caption}>已确认 {identityConfirmed.length} / {game.players.length}</Text>
+            </View>
+            <Text style={type.footnote}>请玩家闭眼。主持人按座位逐人核对，公开只读座位号；具体身份留在上方“仅主持人看”区域。也可以点选其他未确认座位调整顺序。</Text>
+            <SeatGrid
+              game={game}
+              selected={draft.selected}
+              onSelect={seat => patch({ selected: draft.selected === seat ? null : seat })}
+              showRoles={showRoles}
+              filter={player => !identityConfirmed.includes(player.seat)}
+            />
+            <Text style={type.footnote}>全部 {game.players.length} 个座位确认完成后，才会进入第一个夜间角色行动。</Text>
+          </Card>
+        ) : null}
 
         {stage === 'last-words' && pending?.kind === 'last-words' ? (
           <Card style={styles.panel}>
@@ -120,8 +139,8 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
               <Text style={type.headline}>{meta?.night?.targetLabel ?? '记录狼队刀口'}</Text>
               <Text style={type.caption}>{stage === 'dancer' ? `已选 ${draft.dance.length} / 3` : draft.selected === null ? '未选择' : `${draft.selected} 号`}</Text>
             </View>
-            {!actorAlive ? <Text style={styles.inactiveNote}>这个角色已经出局，本夜无需行动。点击下方“跳过并继续”即可。</Text> : null}
-            {actorAlive ? (
+            {!actorStatus.canAct ? <Text style={styles.inactiveNote}>{actorStatus.blockedByFear ? '这个角色仍然存活，但本夜被恐惧，不能行动。点击下方“跳过并继续”即可。' : '这个角色已经出局，本夜无需行动。点击下方“跳过并继续”即可。'}</Text> : null}
+            {actorStatus.canAct ? (
               stage === 'dancer' ? (
                 <SeatGrid
                   game={game}
@@ -167,7 +186,7 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
           </Card>
         ) : null}
 
-        {stage === 'witch' ? <WitchPanel game={game} showRoles={showRoles} draft={draft} patch={patch} actorAlive={actorAlive} /> : null}
+        {stage === 'witch' ? <WitchPanel game={game} showRoles={showRoles} draft={draft} patch={patch} actorStatus={actorStatus} /> : null}
 
         {stage === 'sheriff-signup' ? (
           <Card style={styles.panel}>

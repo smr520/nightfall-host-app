@@ -1,14 +1,19 @@
 import { nightCallsFor } from './boards';
 import { validateLastWordsPolicy } from './last-words';
 import { ROLES, isRole } from './roles';
-import type { Counts, HostingFlow, NightCall } from './types';
+import type { Counts, HostingFlow, NightCall, Rules } from './types';
 
-const FIXED_FLOW_STAGES = ['dawn', 'dawn-announcement', 'last-words', 'sheriff-signup', 'sheriff-vote', 'discussion', 'exile-vote', 'hunter', 'badge', 'shot', 'link', 'heir', 'ended'];
+const FIXED_FLOW_STAGES = ['identity-check', 'dawn', 'dawn-announcement', 'last-words', 'sheriff-signup', 'sheriff-vote', 'discussion', 'exile-vote', 'hunter', 'badge', 'shot', 'link', 'heir', 'ended'];
 const validCall = (value: unknown): value is NightCall => value === 'wolves' || isRole(value) && !!ROLES[value].night;
 const validScriptStage = (value: string) => FIXED_FLOW_STAGES.includes(value) || validCall(value);
 export const DAWN_CAUSES = ['knife', 'poison', 'shot', 'ruling', 'link', 'dance', 'check', 'dream', 'demon-hunt'] as const;
 
 const sameSet = (left: NightCall[], right: NightCall[]) => left.length === right.length && new Set(left).size === left.length && left.every(item => right.includes(item));
+
+/** Dead-role empty wake-ups are the default unless the host explicitly turns them off. */
+export function shouldKeepDeadCalls(rules: Pick<Rules, 'flow'>): boolean {
+  return rules.flow?.keepDeadCalls !== false;
+}
 
 export function resolveNightOrder(counts: Counts, flow?: HostingFlow): NightCall[] {
   const defaultOrder = nightCallsFor(counts);
@@ -35,6 +40,7 @@ export function validateFlow(value: unknown, counts?: Counts): value is HostingF
   const flow = value as Record<string, unknown>;
   if (flow.manualDawn !== undefined && typeof flow.manualDawn !== 'boolean') return false;
   if (flow.keepDeadCalls !== undefined && typeof flow.keepDeadCalls !== 'boolean') return false;
+  if (flow.identityCheck !== undefined && flow.identityCheck !== 'after-deal' && flow.identityCheck !== 'at-nightfall') return false;
   if (flow.manualVictory !== undefined && typeof flow.manualVictory !== 'boolean') return false;
   if (!validateLastWordsPolicy(flow.lastWords)) return false;
   if (flow.nightOrder !== undefined) {

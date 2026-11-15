@@ -32,6 +32,7 @@ describe('complete host scripts', () => {
     const custom = fixture({ flow: { nightOrder: ['seer', 'wolves', 'witch', 'guard'] } });
     expect(hostNarration(custom, '').spoken).toMatch(/^天黑了，请所有玩家闭眼。预言家请睁眼/);
     custom.players[4].alive = false; custom.stage = 'wolves';
+    custom.rules.flow = { ...custom.rules.flow, keepDeadCalls: false };
     expect(hostNarration(custom, '').spoken).toMatch(/^天黑了，请所有玩家闭眼。狼人请睁眼/);
     expect(hostNarration(custom, '').spoken).not.toContain('预言家已出局');
   });
