@@ -119,7 +119,7 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
   return [
     r.sheriff ? `上警 · 警长 ${r.sheriffWeight} 票` : '不上警',
     r.win === 'edge' ? '屠边：狼全灭好人胜；民或神全灭狼人胜' : '屠城：狼全灭好人胜；好人全灭狼人胜',
-    `身份确认：${r.flow?.identityCheck === 'at-nightfall' ? '天黑后按座位逐人确认' : '发牌后玩家自行看牌'}`,
+    `身份确认：${r.flow?.identityCheck === 'during-night' || r.flow?.identityCheck === 'at-nightfall' ? '夜间行动时逐项确认座位' : '发牌后玩家自行看牌'}`,
     ...(table.firstNightKnife ? [] : ['首夜狼人只互相确认，不发动击杀']),
     ...medicine,
     ...guard,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
-import { callActorStatus, getNightAnnouncement } from '../../game/engine';
+import { callActorStatus, callIdentitySeats, getNightAnnouncement } from '../../game/engine';
 import { isNightStage } from '../../game/host-ui';
 import { hostingProgress } from '../../game/hosting-reference';
 import { hostNarration, latestPublicOutcome } from '../../game/narration';
@@ -58,6 +58,9 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const vote = game.vote;
   const pending = game.pending[0];
   const identityConfirmed = game.identityConfirmed ?? [];
+  const progressiveIdentity = night && stage !== 'identity-check' && game.rules.flow?.identityCheck === 'during-night';
+  const identitySeats = progressiveIdentity ? callIdentitySeats(game, stage as NightCall) : [];
+  const identityLabel = stage === 'wolves' ? '狼人阵营' : ROLES[stage as keyof typeof ROLES]?.name ?? '当前角色';
 
   return (
     <View style={styles.flex}>
@@ -87,6 +90,20 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
           </View>
         ) : null}
         {narration.privateNote ? <View style={styles.privatePrompt}><Text style={styles.privateLabel}>仅主持人看</Text><Text style={[styles.privateText, privateTextStyle]}>{narration.privateNote}</Text></View> : null}
+
+        {progressiveIdentity ? (
+          <Card style={styles.panel}>
+            <View style={styles.rowBetween}>
+              <View style={styles.identityHead}>
+                <Icon name="eye" size={18} color={colors.textSecondary} />
+                <Text style={type.headline}>本步身份</Text>
+              </View>
+              <Text style={type.caption}>已记 {identityConfirmed.length} / {game.players.length}</Text>
+            </View>
+            <Text accessibilityLabel="本步身份座位" selectable style={styles.identitySeats}>{identitySeats.length ? identitySeats.map(seat => `${seat}号`).join('、') : '暂无可显示座位'}</Text>
+            <Text style={type.footnote}>{identityLabel}。完成这一步后自动记入身份记录；公开台词仍只念角色名，不念座位号。</Text>
+          </Card>
+        ) : null}
 
         {stage === 'identity-check' ? (
           <Card style={styles.panel}>

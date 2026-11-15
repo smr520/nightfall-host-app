@@ -55,11 +55,11 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
         value={rules.flow?.identityCheck ?? 'after-deal'}
         options={[
           { label: '发牌后看牌', value: 'after-deal' },
-          { label: '天黑逐人确认', value: 'at-nightfall' },
+          { label: '夜间行动时确认', value: 'during-night' },
         ]}
         onChange={identityCheck => patch({ identityCheck: identityCheck as NonNullable<HostingFlow['identityCheck']> })}
       />
-      <Text style={type.footnote}>“天黑逐人确认”会先停在一个可撤回的确认页，全部座位确认完才进入第一夜。</Text>
+      <Text style={type.footnote}>“夜间行动时确认”直接进入正常夜晚。轮到某个身份行动时，主持台显示对应座位号，完成该步后自动记入身份记录。</Text>
       <ChoiceRow
         label="放逐记录"
         value={rules.table?.exileRecord ?? 'detailed'}

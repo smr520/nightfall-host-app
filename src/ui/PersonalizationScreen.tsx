@@ -134,6 +134,8 @@ export function PersonalizationScreen({ profiles, selectedProfileId, hostingMode
           : '无警长竞选';
         const nightOrder = profile.rules.flow?.nightOrder;
         const table = tableRules(profile.rules);
+        const progressiveIdentity = profile.rules.flow?.identityCheck === 'during-night'
+          || profile.rules.flow?.identityCheck === 'at-nightfall';
         return (
           <View key={profile.id} style={[styles.profile, responsive.isExpanded && styles.profileWide, selected && styles.profileSelected]}>
             <View style={styles.profileHead}>
@@ -145,7 +147,7 @@ export function PersonalizationScreen({ profiles, selectedProfileId, hostingMode
             <Text style={type.footnote}>
               {table.exileRecord === 'quick' ? '快速放逐记录' : `逐人计票 · 平票${table.exileTie === 'pk' ? ' PK 一轮' : '无人出局'}`}
               {shouldKeepDeadCalls(profile.rules) ? ' · 默认保留出局角色夜间口播' : ' · 跳过出局角色夜间口播'}
-              {profile.rules.flow?.identityCheck === 'at-nightfall' ? ' · 天黑逐人确认身份' : ''}
+              {progressiveIdentity ? ' · 夜间行动时确认身份' : ''}
               {table.notes ? ' · 有本桌补充约定' : ''}
             </Text>
             {profile.rules.flow ? <View style={styles.flowSummary}>

@@ -38,10 +38,12 @@ export function createGame(name: string, board: string, players: { name: string;
   const now = Date.now();
   const nightCalls = resolveNightOrder(c, rules.flow);
   const identityAtNightfall = rules.flow?.identityCheck === 'at-nightfall';
+  const identityDuringNight = rules.flow?.identityCheck === 'during-night';
   const initialStage: Stage = identityAtNightfall ? 'identity-check' : 'dawn';
   const g: Game = {
     schema: 2, id: `${now}-${Math.random().toString(36).slice(2, 8)}`, name: name.trim() || '线下狼人杀', board,
-    startedAt: now, day: 1, stage: initialStage, nightCalls, ...(identityAtNightfall ? { identityConfirmed: [] } : {}), rules: clone(rules),
+    startedAt: now, day: 1, stage: initialStage, nightCalls,
+    ...(identityAtNightfall || identityDuringNight ? { identityConfirmed: [] } : {}), rules: clone(rules),
     players: players.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 16), seat: i + 1, alive: true, exposed: false })),
     night: emptyNight(), nightAnnouncement: undefined, lastGuard: null, medicine: { save: true, poison: true }, sheriff: null,
     sheriffDone: !rules.sheriff, signup: [], vote: null, pending: [], announcementReady: false, resume: 'discussion', events: [],
@@ -50,6 +52,7 @@ export function createGame(name: string, board: string, players: { name: string;
   if (!identityAtNightfall) nextNightCall(g, null);
   log(g, `创建 ${board}，身份已录入`, '对局开始');
   if (identityAtNightfall) log(g, '已启用天黑后逐人身份确认', '身份确认阶段');
+  if (identityDuringNight) log(g, '已启用夜间行动时逐步确认身份');
   options.privateNotes?.forEach(note => { if (note.trim()) log(g, note.trim()); });
   return g;
 }

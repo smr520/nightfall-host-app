@@ -20,7 +20,7 @@ const matrixCoverage = {
   specialNightCalls: new Set<NightCall>(),
   lastWords: 0,
   manualDawn: 0,
-  identityCheck: 0,
+  progressiveIdentity: 0,
   quickExile: 0,
   explicitDeadlockEnds: 0,
 };
@@ -75,7 +75,7 @@ function rulesFor(scenario: Scenario, roles: readonly Role[]): Rules {
           explode: true,
         },
       }
-      : scenario.variant === 3 ? { identityCheck: 'at-nightfall' } : undefined,
+      : scenario.variant === 3 ? { identityCheck: 'during-night' } : undefined,
     ...(scenario.variant === 3 ? { table: { exileRecord: 'quick' as const } } : {}),
   };
   return withSupportDefaults(rulesForBoard(base, scenario.board), roles);
@@ -217,7 +217,6 @@ function simulate(scenario: Scenario): Game {
 
     switch (game.stage) {
       case 'identity-check': {
-        matrixCoverage.identityCheck += 1;
         const next = game.players.find(player => !(game.identityConfirmed ?? []).includes(player.seat));
         if (!next) throw new Error(`${label}: identity confirmation has no remaining seat`);
         game = act(game, { type: 'confirm-identity', seat: next.seat }, `${label} op=${operations}`);
@@ -326,6 +325,9 @@ function simulate(scenario: Scenario): Game {
   expect(isValidGame(game)).toBe(true);
   expect(gameInvariantIssues(game)).toEqual([]);
   expect(decodeSession(JSON.stringify({ current: game, undo: [], redo: [] })).session.current).toEqual(game);
+  if (game.rules.flow?.identityCheck === 'during-night' && (game.identityConfirmed?.length ?? 0) > 0) {
+    matrixCoverage.progressiveIdentity += 1;
+  }
   return game;
 }
 
@@ -363,7 +365,7 @@ describe('complete interaction matrix for every published board', () => {
     ]));
     expect(matrixCoverage.lastWords).toBeGreaterThan(20);
     expect(matrixCoverage.manualDawn).toBeGreaterThan(20);
-    expect(matrixCoverage.identityCheck).toBeGreaterThan(20);
+    expect(matrixCoverage.progressiveIdentity).toBeGreaterThan(20);
     expect(matrixCoverage.quickExile).toBeGreaterThan(20);
     expect(matrixCoverage.explicitDeadlockEnds).toBeLessThan(10);
   });

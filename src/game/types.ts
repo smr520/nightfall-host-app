@@ -87,8 +87,13 @@ export type HostingFlow = {
   manualDawn?: boolean;
   /** Keep a dead role's night call as an explicit empty wake-up for the host. */
   keepDeadCalls?: boolean;
-  /** Whether role verification happens after dealing or after the room closes their eyes. */
-  identityCheck?: 'after-deal' | 'at-nightfall';
+  /**
+   * after-deal: players look at their cards after dealing.
+   * during-night: seat numbers are revealed in context as each role acts.
+   * at-nightfall is retained only for reading 1.0.1 sessions that are already in the old
+   * pre-night seat-confirmation stage; new games use during-night.
+   */
+  identityCheck?: 'after-deal' | 'during-night' | 'at-nightfall';
   /** Let the host confirm victory instead of ending automatically for standard camps. */
   manualVictory?: boolean;
   /** 各类死亡是否进入独立遗言队列；全部缺省时保持旧流程。 */
@@ -167,7 +172,7 @@ export type Game = {
   stage: Stage;
   /** 本局夜间行动顺序，随角色构成生成 */
   nightCalls: NightCall[];
-  /** 天黑后逐人确认身份时，已经核对完成的座位。 */
+  /** 渐进确认模式中已经随正常行动核对的身份座位；旧存档也可保存逐座预确认进度。 */
   identityConfirmed?: number[];
   players: Player[];
   rules: Rules;

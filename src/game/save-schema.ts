@@ -44,9 +44,10 @@ function isValidGameShape(v: unknown, schema: 1 | 2): v is RecordValue & Game {
   if (!nullableSeat(v.lastGuard) || !nullableSeat(v.sheriff) || !object(v.medicine) || !bool(v.medicine.save) || !bool(v.medicine.poison) || !bool(v.sheriffDone) || !bool(v.announcementReady) || !seatList(v.signup) || !oneOf(v.resume, ['discussion', 'night'])) return false;
   if (v.identityConfirmed !== undefined && !seatList(v.identityConfirmed)) return false;
   const identityMode = v.rules.flow?.identityCheck;
-  if (v.identityConfirmed !== undefined && identityMode !== 'at-nightfall') return false;
+  if (v.identityConfirmed !== undefined && identityMode !== 'at-nightfall' && identityMode !== 'during-night') return false;
   if (v.stage === 'identity-check' && (identityMode !== 'at-nightfall' || !Array.isArray(v.identityConfirmed))) return false;
   if (v.stage === 'identity-check' && (v.identityConfirmed as number[]).length >= v.players.length) return false;
+  if (identityMode === 'during-night' && !Array.isArray(v.identityConfirmed)) return false;
   if (v.stage !== 'identity-check' && identityMode === 'at-nightfall' && (!Array.isArray(v.identityConfirmed) || v.identityConfirmed.length !== v.players.length)) return false;
   if (!optionalText(v.nightAnnouncement) || !optionalText(v.endReason) || (v.endedAt !== undefined && !finite(v.endedAt)) || (v.winner !== undefined && !oneOf(v.winner, ['good', 'wolf', 'third', 'draw']))) return false;
   if (v.stage === 'ended' && (!v.winner || !finite(v.endedAt))) return false;

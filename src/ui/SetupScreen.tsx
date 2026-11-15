@@ -28,6 +28,11 @@ import { BoardStep, RosterStep, RulesStep } from './setup/SetupSteps';
 import { styles } from './setup/styles';
 import type { Step, TreasureDeal } from './setup/types';
 
+function rulesForNewGame(rules: Rules): Rules {
+  if (rules.flow?.identityCheck !== 'at-nightfall') return rules;
+  return { ...rules, flow: { ...rules.flow, identityCheck: 'during-night' } };
+}
+
 export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, onBack, onStart, onSaveProfile, onOpenReference }: {
   mode: HostingMode;
   initialRules: Rules;
@@ -71,9 +76,9 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
   const profileNameInput = useRef<React.ElementRef<typeof TextInput>>(null);
   const profileNameY = useRef(0);
   const profileSavePending = useRef(false);
-  const [baseRules, setBaseRules] = useState(() => mergeRules(initialSetup && !initialProfile ? initialSetup.rules : initialRules));
+  const [baseRules, setBaseRules] = useState(() => rulesForNewGame(mergeRules(initialSetup && !initialProfile ? initialSetup.rules : initialRules)));
   const hostRuleOverrides = useRef<Partial<Rules>>({});
-  const [rules, setAppliedRules] = useState<Rules>(() => initialSetup && !initialProfile ? mergeRules(initialSetup.rules) : rulesForBoard(baseRules, board));
+  const [rules, setAppliedRules] = useState<Rules>(() => rulesForNewGame(initialSetup && !initialProfile ? mergeRules(initialSetup.rules) : rulesForBoard(baseRules, board)));
   const [players, setPlayers] = useState<{ name: string; role: Role }[]>(() => initialState.seats.map((role, index) => ({ name: initialState.names[index] ?? '', role })));
   const [profileSaving, setProfileSaving] = useState(false);
   const [error, setError] = useState('');
@@ -219,7 +224,7 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
       if (players.some(player => !isIdentityCard(player.role))) throw new Error('旧方案把幸运儿当成了独立身份。请返回板子页编辑阵容，移除幸运儿并补回玩家原身份。');
       const privateNotes = deal && deal.boardId === board.id ? [treasureReserveLog({ reserve: deal.reserve, treasureCamp: deal.camp })] : [];
       const treasure = deal && deal.boardId === board.id ? { reserve: deal.reserve, camp: deal.camp } : undefined;
-      const rulesToUse = normalizedRules();
+      const rulesToUse = rulesForNewGame(normalizedRules());
       const setup = makeSetupMemory({
         mode,
         boardId: board.sourceBoardId ?? (board.tag !== 'custom' ? board.id : undefined),

@@ -35,6 +35,8 @@ export const styles = StyleSheet.create({
   supportBannerText: { flex: 1, minWidth: 190, gap: 2 },
   privateLabel: { ...type.caption, color: colors.textSecondary },
   privateText: { ...type.footnote, lineHeight: 22 },
+  identityHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  identitySeats: { ...type.title2, fontSize: 26, lineHeight: 34, color: colors.text },
   panel: { gap: spacing.md, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
   processCard: { gap: spacing.sm, borderRadius: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: spacing.md, backgroundColor: 'transparent', borderWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   reviewCard: { gap: spacing.sm, borderColor: colors.gold },

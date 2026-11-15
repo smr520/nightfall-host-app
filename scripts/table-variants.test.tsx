@@ -2,7 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { DEFAULT_RULES, openingRulesScript, ruleSummary } from '../src/game/config';
-import { applyAction, callActorStatus, callIsActive, createGame } from '../src/game/engine';
+import { applyAction, callActorStatus, callIdentitySeats, callIsActive, createGame } from '../src/game/engine';
 import { gameInvariantIssues } from '../src/game/save-invariants';
 import { normalizePreferences } from '../src/game/preferences';
 import { decodeSession, isValidGame } from '../src/game/save-schema';
@@ -66,11 +66,11 @@ describe('table defaults and validation', () => {
     expect(tableRules(undefined).exileRecord).toBe('detailed');
   });
 
-  it('persists the new table rhythm fields in saved profiles', () => {
+  it('persists the table rhythm fields in saved profiles', () => {
     const rules: Rules = {
       ...DEFAULT_RULES,
       table: { exileRecord: 'quick' },
-      flow: { identityCheck: 'at-nightfall', keepDeadCalls: false },
+      flow: { identityCheck: 'during-night', keepDeadCalls: false },
     };
     const restored = normalizePreferences({
       hostingMode: 'custom',
@@ -79,7 +79,7 @@ describe('table defaults and validation', () => {
     }).profiles[0];
 
     expect(restored.rules.table?.exileRecord).toBe('quick');
-    expect(restored.rules.flow?.identityCheck).toBe('at-nightfall');
+    expect(restored.rules.flow?.identityCheck).toBe('during-night');
     expect(restored.rules.flow?.keepDeadCalls).toBe(false);
   });
 
@@ -91,7 +91,7 @@ describe('table defaults and validation', () => {
     expect(app.button('身份确认 发牌后看牌')?.props.accessibilityState.selected).toBe(true);
     expect(app.button('放逐记录 逐人计票')?.props.accessibilityState.selected).toBe(true);
     expect(app.button('出局角色夜间口播 默认保留')?.props.accessibilityState.selected).toBe(true);
-    app.press('身份确认 天黑逐人确认');
+    app.press('身份确认 夜间行动时确认');
     app.press('放逐记录 快速记录结果');
     app.press('出局角色夜间口播 跳过');
     app.press('展开更多桌规');
@@ -101,10 +101,26 @@ describe('table defaults and validation', () => {
     app.press('开始主持');
 
     const game = onStart.mock.calls[0][0] as Game;
-    expect(game.rules.flow?.identityCheck).toBe('at-nightfall');
+    expect(game.rules.flow?.identityCheck).toBe('during-night');
     expect(game.rules.flow?.keepDeadCalls).toBe(false);
     expect(game.rules.table?.exileRecord).toBe('quick');
-    expect(game.stage).toBe('identity-check');
+    expect(game.stage).toBe(game.nightCalls[0]);
+    expect(game.identityConfirmed).toEqual([]);
+  });
+
+  it('migrates the old pre-game confirmation choice when building a new game', () => {
+    const app = mount(
+      <SetupScreen
+        mode="standard"
+        initialRules={{ ...DEFAULT_RULES, flow: { identityCheck: 'at-nightfall' } }}
+        onBack={jest.fn()}
+        onStart={jest.fn()}
+      />,
+    );
+
+    app.press('下一步');
+    expect(app.button('身份确认 夜间行动时确认')?.props.accessibilityState.selected).toBe(true);
+    expect(app.button('身份确认 天黑逐人确认')).toBeUndefined();
   });
 
   it('omits exile PK text and timing when fast recording is selected', () => {
@@ -190,6 +206,88 @@ describe('nightfall identity confirmation', () => {
     expect(spoken).not.toMatch(/狼人|预言家|女巫/);
     app.press('确认 1 号身份');
     expect(dispatch).toHaveBeenCalledWith({ type: 'confirm-identity', seat: 1 });
+  });
+});
+
+describe('progressive identity confirmation during night actions', () => {
+  it('starts the normal first night without a separate seat-confirmation stage', () => {
+    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+
+    expect(game.stage).toBe(game.nightCalls[0]);
+    expect(game.stage).not.toBe('identity-check');
+    expect(game.identityConfirmed).toEqual([]);
+    expect(isValidGame(game)).toBe(true);
+  });
+
+  it('reveals role seats in context and records them after the normal action', () => {
+    let game = gameWith({ flow: { identityCheck: 'during-night' } });
+    game.stage = 'wolves';
+
+    expect(callIdentitySeats(game, 'wolves')).toEqual([1, 2]);
+    game = applyAction(game, { type: 'wolves', target: null });
+    expect(game.identityConfirmed).toEqual([1, 2]);
+
+    game.stage = 'seer';
+    expect(callIdentitySeats(game, 'seer')).toEqual([5]);
+    game = applyAction(game, { type: 'seer', target: null });
+    expect(game.identityConfirmed).toEqual([1, 2, 5]);
+  });
+
+  it('keeps partial in-game identity progress across saved sessions', () => {
+    let game = gameWith({ flow: { identityCheck: 'during-night' } });
+    game.stage = 'wolves';
+    game = applyAction(game, { type: 'wolves', target: null });
+
+    const restored = decodeSession(JSON.stringify({ current: game, undo: [], redo: [] })).session.current;
+    expect(restored.stage).toBe('seer');
+    expect(restored.identityConfirmed).toEqual([1, 2]);
+    expect(isValidGame({ ...game, identityConfirmed: undefined })).toBe(false);
+  });
+
+  it('shows the exact seats on the ordinary wolves action screen', () => {
+    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    game.stage = 'wolves';
+    const app = mount(
+      <GameScreen
+        game={game}
+        canUndo={false}
+        canRedo={false}
+        error=""
+        selectionRevision={0}
+        onBack={jest.fn()}
+        onUndo={jest.fn()}
+        onRedo={jest.fn()}
+        onReset={jest.fn()}
+        dispatch={jest.fn(() => true)}
+      />,
+    );
+
+    expect(app.text()).toContain('本步身份');
+    expect(app.text()).toContain('1号、2号');
+    expect(app.text()).toContain('完成这一步后自动记入身份记录');
+  });
+
+  it('keeps a dead role identity visible on its retained empty wake-up', () => {
+    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    game.stage = 'guard';
+    game.players[5] = { ...game.players[5], alive: false, death: { day: 1, cause: 'knife' } };
+    const app = mount(
+      <GameScreen
+        game={game}
+        canUndo={false}
+        canRedo={false}
+        error=""
+        selectionRevision={0}
+        onBack={jest.fn()}
+        onUndo={jest.fn()}
+        onRedo={jest.fn()}
+        onReset={jest.fn()}
+        dispatch={jest.fn(() => true)}
+      />,
+    );
+
+    expect(app.text()).toContain('本步身份座位：6 号（守卫）');
+    expect(app.text()).toContain('本角色已出局');
   });
 });
 

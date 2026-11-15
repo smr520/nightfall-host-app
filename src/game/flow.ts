@@ -40,7 +40,10 @@ export function validateFlow(value: unknown, counts?: Counts): value is HostingF
   const flow = value as Record<string, unknown>;
   if (flow.manualDawn !== undefined && typeof flow.manualDawn !== 'boolean') return false;
   if (flow.keepDeadCalls !== undefined && typeof flow.keepDeadCalls !== 'boolean') return false;
-  if (flow.identityCheck !== undefined && flow.identityCheck !== 'after-deal' && flow.identityCheck !== 'at-nightfall') return false;
+  if (flow.identityCheck !== undefined
+    && flow.identityCheck !== 'after-deal'
+    && flow.identityCheck !== 'during-night'
+    && flow.identityCheck !== 'at-nightfall') return false;
   if (flow.manualVictory !== undefined && typeof flow.manualVictory !== 'boolean') return false;
   if (!validateLastWordsPolicy(flow.lastWords)) return false;
   if (flow.nightOrder !== undefined) {

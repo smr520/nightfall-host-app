@@ -168,7 +168,7 @@ export function setupSummary(memory: Pick<SetupMemory, 'rules' | 'playerNames'>)
     `发言 ${speechSecondsForRules(memory.rules, 'discussion')} 秒`,
   ];
   if (memory.rules.flow?.nightOrder || memory.rules.flow?.scripts) parts.push('自定义流程');
-  if (memory.rules.flow?.identityCheck === 'at-nightfall') parts.push('天黑逐人确认身份');
+  if (memory.rules.flow?.identityCheck === 'during-night' || memory.rules.flow?.identityCheck === 'at-nightfall') parts.push('夜间行动时确认身份');
   if (memory.rules.table?.exileRecord === 'quick') parts.push('快速放逐记录');
   if (memory.rules.flow?.manualDawn) parts.push('天亮复核');
   if (memory.rules.flow?.manualVictory) parts.push('主持人判胜');

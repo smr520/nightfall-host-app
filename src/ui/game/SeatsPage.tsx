@@ -14,6 +14,8 @@ export function SeatsPage({ game, showRoles, onToggleRoles }: { game: Game; show
   const [openSeat, setOpenSeat] = useState<number | null>(null);
   const player = openSeat === null ? null : game.players.find(item => item.seat === openSeat) ?? null;
   const dead = game.players.filter(item => !item.alive);
+  const identityConfirmed = game.identityConfirmed ?? [];
+  const progressiveIdentity = game.rules.flow?.identityCheck === 'during-night';
   const responsive = useResponsive();
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: responsive.gutter, width: '100%', maxWidth: responsive.maxContentWidth, alignSelf: 'center' }]} showsVerticalScrollIndicator={false}>
@@ -34,6 +36,15 @@ export function SeatsPage({ game, showRoles, onToggleRoles }: { game: Game; show
       <View style={styles.visibility}>
         <SwitchRow label="显示身份" hint={showRoles ? '座位上直接标出身份' : '默认隐藏，点座位单独查看'} value={showRoles} onChange={onToggleRoles} />
       </View>
+
+      {progressiveIdentity ? <View style={styles.identityRecord}>
+        <View style={styles.identityRecordHead}>
+          <Text style={type.headline}>夜间身份记录</Text>
+          <Text style={type.caption}>{identityConfirmed.length} / {game.players.length} 个座位</Text>
+        </View>
+        <Text style={type.footnote}>这不是开局确认步骤。每次某个身份完成正常夜间行动后，对应座位会自动追加到这里。</Text>
+        <Text selectable style={styles.identityProgress}>{identityConfirmed.length ? identityConfirmed.map(seat => `${seat} 号`).join('、') : '尚未记录；轮到第一个夜间角色行动时开始逐步确认。'}</Text>
+      </View> : null}
 
       <View style={styles.seats}>
         <SeatGrid game={game} selected={openSeat} onSelect={seat => setOpenSeat(seat)} showRoles={showRoles} tapDead />
@@ -94,6 +105,9 @@ const styles = StyleSheet.create({
   statDanger: { color: colors.danger },
   statGold: { color: colors.gold },
   visibility: { paddingBottom: spacing.xs },
+  identityRecord: { gap: spacing.sm, padding: spacing.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, borderRadius: 8, backgroundColor: colors.surfaceAlt },
+  identityRecordHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  identityProgress: { ...type.body, color: colors.text },
   seats: { gap: spacing.md },
   privateHint: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   hint: { ...type.footnote, fontSize: 12, flex: 1 },
