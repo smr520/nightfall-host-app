@@ -1,5 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
+  - name: 反馈与参与说明
+    url: https://github.com/smr520/nightfall-host-app/blob/main/CONTRIBUTING.md
+    about: 查看使用问题、功能建议、隐私要求和代码提交规范
   - name: 使用讨论与玩法反馈
     url: https://github.com/smr520/nightfall-host-app/discussions
     about: 交流使用体验、线下桌规差异和尚未确定的功能建议
