@@ -1,13 +1,14 @@
 import { callTitle } from './boards';
-import { callIsActive } from './engine';
+import { callActorStatus, callIdentitySeats, callIsActive, nightCallIdentityConfirmed } from './engine';
 import { isNightStage } from './host-ui';
 import type { Game } from './types';
 import { tableRules } from './table-rules';
 import { hasLastWordsPolicy } from './last-words';
+import { canSkipNightAction } from './role-behavior';
 
 export const HOSTING_STEPS: { id: string; title: string; description: string; checks: string[] }[] = [
-  { id: 'prepare', title: '开局确认', description: '先统一阵容、桌规和座位，再按本桌约定进入夜晚。', checks: ['核对人数、角色与实际发出的身份牌。', '身份可在发牌后自行看牌，或采用“夜间行动流程：确认即行动”；后者不增加开局逐座核对步骤。', '向全桌说明警长顺序、胜负条件、女巫用药和猎人限制；图鉴介绍不替代本桌约定。'] },
-  { id: 'night', title: '夜间行动流程', description: '按本局角色生成的顺序依次唤醒、确认身份或阵营、执行技能、闭眼，再进入下一个角色。', checks: ['主持词可以念，刀口、身份和技能目标只供主持人核对。', '采用“确认即行动”时，轮到某角色就在这一步显示对应座位号；先确认身份或阵营，再立即执行技能，闭眼并完成该步后自动记入身份记录。', '已出局角色默认保留空唤醒口播，念完直接继续；只有主持人明确关闭时才跳过。', '每步明确选择目标或空过；仅首夜角色仍只在首夜行动。仅记录目标的特殊技能需要现场复核，不能把记录等同于自动结算。'] },
+  { id: 'prepare', title: '开局确认', description: '先统一阵容、桌规和座位，再按本桌约定进入夜晚。', checks: ['核对人数、角色清单和玩家姓名；具体座位身份不需要在赛前写入。', '身份可在发牌后自行看牌，或采用“夜间行动流程：确认即行动”；后者在每一步夜间行动中由主持人点选实际睁眼座位。', '向全桌说明警长顺序、胜负条件、女巫用药和猎人限制；图鉴介绍不替代本桌约定。'] },
+  { id: 'night', title: '夜间行动流程', description: '按本局角色生成的顺序依次唤醒、点选本步座位、确认身份或阵营、执行技能、闭眼，再进入下一个角色。', checks: ['主持词可以念，刀口、身份和技能目标只供主持人核对。', '采用“确认即行动”时，轮到某角色就点选本步实际睁眼的座位；确认后对应角色组落到这些座位，才出现刀人或技能操作。', '已出局角色默认保留空唤醒口播，念完直接继续；只有主持人明确关闭时才跳过。', '每步明确选择目标或空过；仅首夜角色仍只在首夜行动。仅记录目标的特殊技能需要现场复核，不能把记录等同于自动结算。'] },
   { id: 'dawn', title: '天亮与首日竞选', description: '按开局桌规决定先竞选还是先公布昨夜结果。', checks: ['先核对私密预览，公开时只念出局座位，不念死因或查验结果。', '先竞选的桌规：完成竞选后再确认公布，未公布死者仍可参与竞选。', '先公布的桌规：先处理死亡技能、警徽和胜负，再由存活玩家竞选。'] },
   { id: 'discussion', title: '白天发言', description: '现场确认发言顺序和本轮特殊技能，再进入放逐投票。', checks: ['由主持人或警长按桌规指定发言方向。', '白天发言可按座位计时；赛前开启的遗言策略命中后，软件会生成独立队列并逐座位处理。', '特殊结算使用人工裁定时填写理由，便于事后核对。'] },
   { id: 'vote', title: '放逐记录', description: '放逐可按本桌节奏逐人录票，或直接记录最终被票出的座位。', checks: ['警长竞选始终逐人记录；警长加权仅用于逐人放逐投票。', '快速放逐只记录最终结果，不计算票型、平票或 PK；死亡技能、遗言、警徽和胜负仍正常处理。', '逐人放逐的平票政策可设为 PK 一轮或无人出局；PK 候选人不投本轮 PK。'] },
@@ -42,7 +43,24 @@ export function hostingProgress(game: Game): HostingProgress {
   if (isNightStage(stage)) {
     const remaining = game.nightCalls.slice(Math.max(0, game.nightCalls.indexOf(stage as Game['nightCalls'][number]) + 1));
     const next = remaining.find(call => callIsActive(game, call));
-    return { current: '夜间行动', next: next ? callTitle(next) : '天亮核对', check: '收齐本步操作，确认目标或明确空过，再推进下一步。' };
+    const canSkip = canSkipNightAction(stage as Game['nightCalls'][number]);
+    const actor = callActorStatus(game, stage as Game['nightCalls'][number]);
+    const identityPending = game.rules.flow?.identityCheck === 'during-night'
+      && !nightCallIdentityConfirmed(game, stage as Game['nightCalls'][number]);
+    const identityCount = callIdentitySeats(game, stage as Game['nightCalls'][number]).length;
+    return {
+      current: '夜间行动',
+      next: next ? callTitle(next) : '天亮核对',
+      check: identityPending
+        ? `先点选本步实际睁眼的 ${identityCount} 个座位并确认身份，选定后才能进入技能操作。`
+        : !actor.canAct
+        ? actor.blockedByFear
+          ? '角色仍存活，但本夜被恐惧，确认不能行动后继续空唤醒。'
+          : '角色已经出局，确认空唤醒后继续；这一步不录入目标和技能效果。'
+        : canSkip
+          ? '收齐本步操作，选择目标或明确空过，再推进下一步。'
+          : '本步必须选择目标并完成行动，不能让仍存活的角色空过。',
+    };
   }
   if (stage === 'dawn') {
     const election = game.day === 1 && game.rules.sheriff && !game.sheriffDone;

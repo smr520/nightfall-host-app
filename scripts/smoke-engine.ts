@@ -28,7 +28,7 @@ expectStage(game.stage, 'dawn-announcement', 'After sheriff election');
 run({ type: 'announce-dawn' });
 expectStage(game.stage, 'discussion', 'After dawn announcement');
 run({ type: 'start-exile' });
-for (const voter of game.vote?.voters ?? []) run({ type: 'ballot', voter, target: 1 });
+for (const voter of game.vote?.voters ?? []) run({ type: 'ballot', voter, target: voter === 1 ? 2 : 1 });
 run({ type: 'count' });
 if (game.day !== 2 || game.stage !== 'wolves') throw new Error(`Expected next night, got day ${game.day} ${game.stage}`);
 

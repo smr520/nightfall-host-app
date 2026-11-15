@@ -31,17 +31,19 @@ function completeNight(game: Game, knife: number | null = null, guardTarget: num
 
 describe('per-table rules', () => {
   it('resolves legacy defaults and validates only the supported fields', () => {
-    const defaults = { lineupMode: 'standard', firstNightKnife: true, guardRepeat: false, sheriffTie: 'pk', exileTie: 'pk', exileRecord: 'detailed', notes: '' };
+    const defaults = { lineupMode: 'standard', firstNightKnife: true, guardRepeat: false, sheriffTie: 'pk', exileTie: 'pk', exileRecord: 'detailed', exileSelfVote: false, notes: '' };
     expect(tableRules(undefined)).toEqual(defaults);
     expect(tableRules(DEFAULT_RULES)).toEqual(defaults);
     expect(validateTableRules(undefined)).toBe(true);
     expect(validateTableRules({ guardRepeat: true, sheriffTie: 'none', exileTie: 'pk', notes: '赛前约定' })).toBe(true);
     expect(validateTableRules({ lineupMode: 'free', firstNightKnife: false })).toBe(true);
     expect(validateTableRules({ exileRecord: 'quick' })).toBe(true);
+    expect(validateTableRules({ exileSelfVote: true })).toBe(true);
     expect(validateTableRules({ lineupMode: 'mixed' })).toBe(false);
     expect(validateTableRules({ firstNightKnife: 'no' })).toBe(false);
     expect(validateTableRules({ sheriffTie: 'draw' })).toBe(false);
     expect(validateTableRules({ exileRecord: 'skip' })).toBe(false);
+    expect(validateTableRules({ exileSelfVote: 'yes' })).toBe(false);
     expect(validateTableRules({ notes: 'x'.repeat(1201) })).toBe(false);
   });
 

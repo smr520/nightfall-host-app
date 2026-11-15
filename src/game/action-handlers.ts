@@ -5,6 +5,8 @@ import type { Action, Game, NightCall } from './types';
 import type { ActionContext, ActionOf } from './action-context';
 import { addCheckDeath, isNightmareFeared } from './action-helpers';
 import { createDeathActionHandlers } from './death-action-handlers';
+import { canSkipNightAction } from './role-behavior';
+import { assignNightCallIdentity, callIdentitySeats, nightCallIdentityConfirmed } from './night';
 
 export function createActionHandlers(ctx: ActionContext) {
   const death = createDeathActionHandlers(ctx);
@@ -18,6 +20,7 @@ export function createActionHandlers(ctx: ActionContext) {
       case 'witch': applyWitch(g, action); break;
       case 'call': applyCall(g, action); break;
       case 'confirm-identity': applyConfirmIdentity(g, action); break;
+      case 'assign-night-identity': applyAssignNightIdentity(g, action); break;
       case 'dance': applyDance(g, action); break;
       case 'borrow': applyBorrow(g, action); break;
       case 'hunt': applyHunt(g); break;
@@ -47,9 +50,16 @@ export function createActionHandlers(ctx: ActionContext) {
   function applySkipNight(g: Game, action: ActionOf<'skip-night'>) {
     const call = g.stage as NightCall;
     ctx.demand(g.nightCalls.includes(call), '只能跳过当前夜间行动，不能跳过出局技能或投票结算');
+    requireNightIdentity(g, call);
     const active = ctx.callActorAlive(g, call);
-    if (call === 'nine-tails' || call === 'dancer') ctx.demand(!active, call === 'nine-tails' ? '九尾每夜必须标记一名玩家' : '舞者每夜必须选择三名玩家共舞');
-    else if (call !== 'wolves' && ROLES[call].night?.canSkip === false) ctx.demand(!active, `${ROLES[call].name}本夜必须行动`);
+    const mandatoryMessage = call === 'nine-tails'
+      ? '九尾每夜必须标记一名玩家'
+      : call === 'dancer'
+        ? '舞者每夜必须选择三名玩家共舞'
+        : call === 'wolves'
+          ? '狼人行动本夜必须完成'
+          : `${ROLES[call].name}本夜必须行动`;
+    ctx.demand(!active || canSkipNightAction(call), mandatoryMessage);
     if (call === 'guard') g.night.guard = null;
     else if (call === 'wolves') g.night.knife = null;
     else if (call === 'seer') g.night.inspect = null;
@@ -62,6 +72,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applyGuard(g: Game, action: ActionOf<'guard'>) {
     ctx.requireStage(g, 'guard');
+    requireNightIdentity(g, 'guard');
     ctx.target(g, action.target);
     const guard = ctx.actor(g, 'guard');
     ctx.demand(guard || action.target === null, '守卫已出局，只能空过');
@@ -74,6 +85,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applyWolves(g: Game, action: ActionOf<'wolves'>) {
     ctx.requireStage(g, 'wolves');
+    requireNightIdentity(g, 'wolves');
     ctx.target(g, action.target);
     ctx.demand(g.day !== 1 || tableRules(g.rules).firstNightKnife || action.target === null, '本板首夜仅确认狼队，不能击杀');
     ctx.demand(ctx.knifeActors(g).length > 0 || action.target === null, '没有可动刀的角色，只能空过');
@@ -84,6 +96,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applySeer(g: Game, action: ActionOf<'seer'>) {
     ctx.requireStage(g, 'seer');
+    requireNightIdentity(g, 'seer');
     ctx.target(g, action.target);
     const seer = ctx.actor(g, 'seer');
     ctx.demand(seer || action.target === null, '预言家已出局，只能空过');
@@ -104,6 +117,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applyWitch(g: Game, action: ActionOf<'witch'>) {
     ctx.requireStage(g, 'witch');
+    requireNightIdentity(g, 'witch');
     ctx.target(g, action.poison);
     const witch = ctx.actor(g, 'witch');
     ctx.demand(witch || (!action.save && action.poison === null), '女巫已出局，只能空过');
@@ -126,6 +140,7 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.demand(g.nightCalls.includes(call), '这个行动不在本局流程里');
     ctx.demand(!['wolves', 'guard', 'seer', 'witch', 'dancer'].includes(call), call === 'dancer' ? '舞者请使用舞池操作' : '基础角色请使用对应行动，不能跳过技能校验');
     ctx.requireStage(g, call);
+    requireNightIdentity(g, call);
     ctx.target(g, action.target);
     const meta = call === 'wolves' ? ROLES.wolf : ROLES[call];
     ctx.demand(ctx.callActorAlive(g, call) || action.target === null, '行动角色已出局，只能空过');
@@ -228,8 +243,35 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.nextNightCall(g, null);
   }
 
+  function requireNightIdentity(g: Game, call: NightCall) {
+    if (g.rules.flow?.identityCheck !== 'during-night') return;
+    ctx.demand(nightCallIdentityConfirmed(g, call), '请先确认本步身份，再执行夜间行动');
+  }
+
+  function applyAssignNightIdentity(g: Game, action: ActionOf<'assign-night-identity'>) {
+    ctx.requireStage(g, action.callId);
+    ctx.demand(g.rules.flow?.identityCheck === 'during-night', '当前对局未启用夜间身份确认');
+    ctx.demand(!nightCallIdentityConfirmed(g, action.callId), '本步身份已经确认');
+    ctx.demand(Array.isArray(action.seats), '身份座位格式无效');
+    ctx.demand(new Set(action.seats).size === action.seats.length, '身份座位不能重复');
+    action.seats.forEach(seat => ctx.player(g, seat));
+    const expected = callIdentitySeats(g, action.callId);
+    ctx.demand(action.seats.length === expected.length, `请选择 ${expected.length} 个座位`);
+    const confirmed = new Set(g.identityConfirmed ?? []);
+    ctx.demand(
+      expected.filter(seat => confirmed.has(seat)).every(seat => action.seats.includes(seat)),
+      '已确认的本步座位不能移除；请先撤回上一步',
+    );
+    ctx.demand(
+      action.seats.filter(seat => !expected.includes(seat)).every(seat => !confirmed.has(seat)),
+      '不能把本步角色放到已确认的其它身份座位；请先撤回上一步',
+    );
+    assignNightCallIdentity(g, action.callId, action.seats);
+  }
+
   function applyDance(g: Game, action: ActionOf<'dance'>) {
     ctx.requireStage(g, 'dancer');
+    requireNightIdentity(g, 'dancer');
     ctx.demand(ctx.actor(g, 'dancer'), '舞者已出局，本夜无需共舞');
     ctx.demand(action.seats.length === 3, '舞池必须选择三名玩家');
     ctx.demand(new Set(action.seats).size === 3, '舞池玩家不能重复');
@@ -246,6 +288,7 @@ export function createActionHandlers(ctx: ActionContext) {
 
   function applyBorrow(g: Game, action: ActionOf<'borrow'>) {
     ctx.requireStage(g, 'treasure-master');
+    requireNightIdentity(g, 'treasure-master');
     const treasure = g.special?.treasure;
     ctx.demand(treasure, '本局没有底牌记录，无法借用');
     ctx.demand(treasure!.reserve.includes(action.card), '只能借用底牌中的身份');
@@ -370,6 +413,13 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.demand(g.vote?.kind !== 'exile' || tableRules(g.rules).exileRecord !== 'quick', '本轮使用快速放逐，请直接记录被票出者');
     ctx.demand(g.vote && g.vote.voters.includes(action.voter), '该玩家没有本轮投票权');
     ctx.demand(action.target === null || g.vote!.candidates.includes(action.target), '只能投给本轮候选人');
+    ctx.demand(
+      action.target === null
+        || g.vote!.kind !== 'exile'
+        || tableRules(g.rules).exileSelfVote
+        || action.target !== action.voter,
+      '放逐投票不能投给自己；如本桌允许，请先在桌规中开启',
+    );
     const previous = g.vote!.ballots[action.voter];
     g.vote!.ballots[action.voter] = action.target;
     ctx.moveVoteMark(g, action.voter, previous, action.target);
@@ -384,6 +434,13 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.demand(new Set(action.voters).size === action.voters.length, '投票人名单重复');
     action.voters.forEach(voter => ctx.demand(g.vote && g.vote.voters.includes(voter), `${voter} 号没有本轮投票权`));
     ctx.demand(action.target === null || g.vote!.candidates.includes(action.target), '只能投给本轮候选人');
+    ctx.demand(
+      action.target === null
+        || g.vote!.kind !== 'exile'
+        || tableRules(g.rules).exileSelfVote
+        || !action.voters.includes(action.target),
+      '放逐投票不能投给自己；如本桌允许，请先在桌规中开启',
+    );
     action.voters.forEach(voter => {
       ctx.moveVoteMark(g, voter, g.vote!.ballots[voter], action.target);
       g.vote!.ballots[voter] = action.target;

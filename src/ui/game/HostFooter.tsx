@@ -1,7 +1,8 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { callActorStatus } from '../../game/engine';
+import { callActorStatus, callIdentitySeats, nightCallIdentityConfirmed } from '../../game/engine';
 import { canNightStageProceed, getStageActionLabel, isNightStage } from '../../game/host-ui';
+import { canSkipNightAction } from '../../game/role-behavior';
 import type { Action, Game, NightCall, Stage } from '../../game/types';
 import { tableRules } from '../../game/table-rules';
 import { Button } from '../kit';
@@ -9,19 +10,25 @@ import { styles } from './styles';
 import type { Draft } from './draft';
 import { dawnDraftNeedsConfirmation } from './DawnReview';
 
-export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAction, onEndPk, onBack }: {
+export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, canUndo, doAction, onEndPk, onUndo, onBack }: {
   game: Game;
   stage: Stage;
   draft: Draft;
   activeVoter: number | null;
   voteRecorded: boolean;
+  canUndo: boolean;
   doAction: (action: Action) => void;
   onEndPk: () => void;
+  onUndo: () => void;
   onBack: () => void;
 }) {
   const night = isNightStage(stage);
   const actorStatus = night ? callActorStatus(game, stage as NightCall) : { hasActor: true, canAct: true, blockedByFear: false };
   const actorCanAct = actorStatus.canAct;
+  const identityRequired = night
+    && game.rules.flow?.identityCheck === 'during-night'
+    && !nightCallIdentityConfirmed(game, stage as NightCall);
+  const expectedIdentityCount = identityRequired ? callIdentitySeats(game, stage as NightCall).length : 0;
   const targetRequired = night ? canNightStageProceed(stage, actorCanAct) : false;
   const pending = game.pending[0];
   const voting = stage === 'sheriff-vote' || stage === 'exile-vote';
@@ -39,6 +46,14 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
   };
 
   const commit = () => {
+    if (identityRequired) {
+      doAction({
+        type: 'assign-night-identity',
+        callId: stage as NightCall,
+        seats: draft.identitySeats,
+      });
+      return;
+    }
     if (stage === 'identity-check') {
       if (identityNext !== null) doAction({ type: 'confirm-identity', seat: identityNext });
       return;
@@ -131,8 +146,13 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
   if (stage === 'witch') primaryDisabled = false;
   if (stage === 'dawn' && game.rules.flow?.manualDawn && !game.night.manualDeaths) { primaryDisabled = true; primaryLabel = '先确认昨夜出局名单'; }
   if (stage === 'dawn' && dawnDraftNeedsConfirmation(game, draft.dawn)) primaryDisabled = true;
+  if (identityRequired) {
+    primaryLabel = `确认本步身份（已选 ${draft.identitySeats.length} / ${expectedIdentityCount}）`;
+    primaryDisabled = draft.identitySeats.length !== expectedIdentityCount;
+  }
 
   const secondary = (() => {
+    if (identityRequired) return null;
     if (stage === 'identity-check') return null;
     if (quickExile) return { label: '本轮无人出局', run: () => doAction({ type: 'exile-result', target: null }) };
     if (stage === 'sheriff-vote' || stage === 'exile-vote') {
@@ -145,7 +165,7 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
     if (stage === 'last-words') return { label: '放弃遗言', run: () => doAction({ type: 'last-words', speak: false }) };
     if (stage === 'discussion') return { label: '不放逐，进入下一夜', run: () => doAction({ type: 'next-night' }) };
     if (night && actorCanAct) {
-      if (stage === 'nine-tails' || stage === 'dancer') return null;
+      if (!canSkipNightAction(stage as NightCall)) return null;
       const label = stage === 'guard' ? '空守（今晚不守人）' : stage === 'wolves' ? '空刀（今晚不杀人）' : stage === 'seer' ? '空过（今晚不查验）' : '跳过本夜行动，继续';
       const run = () => doAction({ type: 'skip-night', reason: '主持人确认本夜不行动' });
       return { label, run };
@@ -154,6 +174,11 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
   })();
 
   const hint = (() => {
+    if (identityRequired) {
+      return draft.identitySeats.length === expectedIdentityCount
+        ? '身份座位已选齐，确认后才能进入本步技能操作'
+        : `还需选择 ${expectedIdentityCount - draft.identitySeats.length} 个本步身份座位`;
+    }
     if (stage === 'identity-check') {
       return identityNext === null ? '全部座位已确认，可以进入第一夜' : `${identityNext} 号待确认；也可以直接点另一个未确认座位`;
     }
@@ -166,7 +191,13 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
     if (night && !actorCanAct) return actorStatus.blockedByFear ? '该角色仍存活，但本夜被恐惧，不能行动' : '该角色已出局，本夜保留空唤醒台词';
     if (stage === 'dancer') return draft.dance.length === 3 ? '舞池已选满三人' : `还需选择 ${3 - draft.dance.length} 人进入舞池`;
     if (stage === 'nine-tails') return draft.selected === null ? '九尾每夜必须标记一名玩家' : `将标记 ${draft.selected} 号`;
-    if (night) return draft.selected === null ? '请选择目标；不发动可使用下方按钮继续' : `已选择 ${draft.selected} 号`;
+    if (night) {
+      if (stage === 'witch') return '确认解药或毒药；两瓶都不用可直接确认。';
+      if (draft.selected !== null) return `已选择 ${draft.selected} 号`;
+      return canSkipNightAction(stage as NightCall)
+        ? '请选择目标；不使用本步技能可点下方跳过按钮。'
+        : '本步必须选择目标，确认后才能继续。';
+    }
     if (stage === 'sheriff-signup') return draft.signup.length ? `已选 ${draft.signup.length} 人上警` : '无人上警也可以继续';
     return '';
   })();
@@ -179,6 +210,10 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
   return (
     <View style={styles.footer}>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      {canUndo && stage !== 'ended' ? <View style={styles.footerUndoRow}>
+        <Button title="撤回上一步" variant="ghost" small onPress={onUndo} />
+        <Text style={styles.footerUndoHint}>会回到上一份已保存状态，可在“更多”中重做。</Text>
+      </View> : null}
       <View style={styles.footerRow}>
         <Button title={primaryLabel || '继续'} onPress={primary} disabled={primaryDisabled} style={styles.flex} />
         {secondary ? <Button title={secondary.label} variant="ghost" small onPress={secondary.run} style={styles.secondary} /> : null}

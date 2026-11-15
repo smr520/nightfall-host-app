@@ -63,6 +63,8 @@ describe('table defaults and validation', () => {
     expect(validateTableRules({ exileRecord: 'quick' })).toBe(true);
     expect(validateTableRules({ exileRecord: 'detailed' })).toBe(true);
     expect(validateTableRules({ exileRecord: 'skip' })).toBe(false);
+    expect(validateTableRules({ exileSelfVote: true })).toBe(true);
+    expect(validateTableRules({ exileSelfVote: 'yes' })).toBe(false);
     expect(tableRules({ exileRecord: 'quick' }).exileRecord).toBe('quick');
     expect(tableRules(undefined).exileRecord).toBe('detailed');
   });
@@ -89,9 +91,11 @@ describe('table defaults and validation', () => {
     const app = mount(<SetupScreen mode="standard" initialRules={DEFAULT_RULES} onBack={jest.fn()} onStart={onStart} />);
 
     app.press('下一步');
-    expect(app.button('夜间行动流程 发牌后自行看牌')?.props.accessibilityState.selected).toBe(true);
+    expect(app.button('夜间行动流程 确认即行动')?.props.accessibilityState.selected).toBe(true);
     expect(app.button('放逐记录 逐人计票')?.props.accessibilityState.selected).toBe(true);
     expect(app.button('出局角色夜间口播 默认保留')?.props.accessibilityState.selected).toBe(true);
+    app.press('夜间行动流程 发牌后自行看牌');
+    expect(app.button('夜间行动流程 发牌后自行看牌')?.props.accessibilityState.selected).toBe(true);
     app.press('夜间行动流程 确认即行动');
     app.press('放逐记录 快速记录结果');
     app.press('出局角色夜间口播 跳过');
@@ -220,16 +224,19 @@ describe('progressive identity confirmation during night actions', () => {
     expect(isValidGame(game)).toBe(true);
   });
 
-  it('reveals role seats in context and records them after the normal action', () => {
+  it('records the selected role seats before the normal action', () => {
     let game = gameWith({ flow: { identityCheck: 'during-night' } });
     game.stage = 'wolves';
 
     expect(callIdentitySeats(game, 'wolves')).toEqual([1, 2]);
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'wolves', seats: [1, 2] });
+    expect(game.identityConfirmed).toEqual([1, 2]);
     game = applyAction(game, { type: 'wolves', target: null });
     expect(game.identityConfirmed).toEqual([1, 2]);
 
     game.stage = 'seer';
     expect(callIdentitySeats(game, 'seer')).toEqual([5]);
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'seer', seats: [5] });
     game = applyAction(game, { type: 'seer', target: null });
     expect(game.identityConfirmed).toEqual([1, 2, 5]);
   });
@@ -237,6 +244,7 @@ describe('progressive identity confirmation during night actions', () => {
   it('keeps partial in-game identity progress across saved sessions', () => {
     let game = gameWith({ flow: { identityCheck: 'during-night' } });
     game.stage = 'wolves';
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'wolves', seats: [1, 2] });
     game = applyAction(game, { type: 'wolves', target: null });
 
     const restored = decodeSession(JSON.stringify({ current: game, undo: [], redo: [] })).session.current;
@@ -246,8 +254,9 @@ describe('progressive identity confirmation during night actions', () => {
   });
 
   it('shows the exact seats on the ordinary wolves action screen', () => {
-    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    let game = gameWith({ flow: { identityCheck: 'during-night' } });
     game.stage = 'wolves';
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'wolves', seats: [1, 2] });
     const app = mount(
       <GameScreen
         game={game}
@@ -265,14 +274,15 @@ describe('progressive identity confirmation during night actions', () => {
 
     expect(app.text()).toContain('本步身份/阵营');
     expect(app.text()).toContain('1号、2号');
-    expect(app.renderer.root.findByProps({ accessibilityLabel: '身份记录 0 / 4 个夜间行动座位' })).toBeDefined();
-    expect(app.text()).toContain('先核对本步身份或阵营，确认后立即完成本步技能');
-    expect(app.text()).toContain('完成本步后自动记入身份记录');
+    expect(app.renderer.root.findByProps({ accessibilityLabel: '身份记录 2 / 4 个夜间行动座位' })).toBeDefined();
+    expect(app.text()).toContain('本步身份已确认，立即完成本步技能');
+    expect(app.text()).toContain('本步身份已确认');
   });
 
   it('puts the full wolf team in the private confirm-and-act prompt', () => {
-    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    let game = gameWith({ flow: { identityCheck: 'during-night' } });
     game.stage = 'wolves';
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'wolves', seats: [1, 2] });
 
     const narration = hostNarration(game, '');
     expect(narration.privateNote).toContain('本步身份/阵营：1 号、2 号（狼人阵营）');
@@ -282,7 +292,7 @@ describe('progressive identity confirmation during night actions', () => {
 
   it('includes an independent late-knife actor in the wolf identity step', () => {
     const lateKnifeRoles: Role[] = ['wolf', 'wolf', 'villager', 'villager', 'seer', 'gargoyle'];
-    const game = createGame(
+    let game = createGame(
       '继承刀权',
       '六人测试局',
       lateKnifeRoles.map((role, index) => ({ name: `${index + 1}号玩家`, role })),
@@ -291,16 +301,18 @@ describe('progressive identity confirmation during night actions', () => {
     game.players[0] = { ...game.players[0], alive: false, death: { day: 1, cause: 'exile' } };
     game.players[1] = { ...game.players[1], alive: false, death: { day: 1, cause: 'exile' } };
     game.stage = 'wolves';
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'wolves', seats: [1, 2, 6] });
 
     expect(callIdentitySeats(game, 'wolves')).toEqual([1, 2, 6]);
     expect(hostNarration(game, '').privateNote).toContain('本步行动座位：6 号');
   });
 
   it('distinguishes a feared living actor from an eliminated actor during the night flow', () => {
-    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    let game = gameWith({ flow: { identityCheck: 'during-night' } });
     game.stage = 'guard';
     const guard = game.players.find(player => player.role === 'guard')!;
     game.night.targets.nightmare = guard.seat;
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'guard', seats: [guard.seat] });
     const app = mount(
       <GameScreen
         game={game}
@@ -321,9 +333,10 @@ describe('progressive identity confirmation during night actions', () => {
   });
 
   it('keeps a dead role identity visible on its retained empty wake-up', () => {
-    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    let game = gameWith({ flow: { identityCheck: 'during-night' } });
     game.stage = 'guard';
     game.players[5] = { ...game.players[5], alive: false, death: { day: 1, cause: 'knife' } };
+    game = applyAction(game, { type: 'assign-night-identity', callId: 'guard', seats: [6] });
     const app = mount(
       <GameScreen
         game={game}

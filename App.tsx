@@ -27,7 +27,7 @@ import { MotionProvider } from './src/ui/motion';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
 import { HostLockGate } from './src/ui/HostLockGate';
 import { rulesForHostingMode } from './src/game/preferences';
-import { gameFromSetup, refreshSetupMemory, setupMemoryFromGame, type SetupMemory } from './src/game/setup-memory';
+import { refreshSetupMemory, setupMemoryFromGame, type SetupMemory } from './src/game/setup-memory';
 import { useHostingPreferences } from './src/hooks/useHostingPreferences';
 
 type MainTab = 'home' | 'skills' | 'personalization';
@@ -207,12 +207,7 @@ function AppContent() {
     if (preferenceWritePending.current) return;
     if (hostingMode === 'custom' && !selectedProfile) { setScreen('personalization'); return; }
     if (writeBlocked || removingSession.current || saveError || savingRef.current) return;
-    const current = sessionRef.current;
-    if (!current || !requiresAbandonConfirmation(true, current.current.stage)) { setScreen('setup'); return; }
-    Alert.alert('当前对局还没结束', '新建对局会替换本机正在进行的对局。要先放弃当前局并继续吗？', [
-      { text: '继续主持', style: 'cancel' },
-      { text: '放弃并新建', style: 'destructive', onPress: () => { void removeCurrent('setup'); } },
-    ]);
+    setScreen('setup');
   };
   const launchGame = (game: Game, setup: SetupMemory) => {
     if (writeBlocked || removingSession.current || saveError || savingRef.current) return;
@@ -223,14 +218,7 @@ function AppContent() {
       { text: '放弃并新开', style: 'destructive', onPress: () => { void removeCurrent('game', () => start(game, setup)); } },
     ]);
   };
-  const repeatSetup = (setup: SetupMemory) => {
-    try {
-      launchGame(gameFromSetup(setup), setup);
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : '上次开局设置无法直接使用，请检查后重试。');
-      setScreen('setup');
-    }
-  };
+  const repeatSetup = () => setScreen('setup');
   const currentSetup = session && (!lastSetup || session.current.startedAt > lastSetup.savedAt)
     ? setupMemoryFromGame(session.current, hostingMode)
     : undefined;
@@ -358,7 +346,7 @@ function AppContent() {
               onPersonalize={() => setScreen('personalization')}
               disabled={writeBlocked || !!saveError || saving || preferenceSaving}
               onNew={newGame}
-              onRepeat={repeatableSetup ? () => repeatSetup(repeatableSetup) : undefined}
+              onRepeat={repeatableSetup ? repeatSetup : undefined}
               onResume={() => setScreen('game')}
               onHistory={openHistory}
               onUndo={undo}
@@ -366,7 +354,7 @@ function AppContent() {
             />
           ) : null}
           {screen === 'skills' ? <SkillTableScreen onOpenGuide={() => setReferenceContext({})} /> : null}
-          {screen === 'setup' ? <SetupScreen key="game-setup" mode={hostingMode} initialProfile={hostingMode === 'custom' ? selectedProfile : undefined} initialSetup={setupPrefill} initialRules={hostingMode === 'custom' && selectedProfile ? { ...selectedProfile.rules } : rulesForHostingMode(hostingMode)} onBack={() => setScreen('home')} onStart={start} onOpenReference={setReferenceContext} /> : null}
+          {screen === 'setup' ? <SetupScreen key="game-setup" mode={hostingMode} initialProfile={hostingMode === 'custom' ? selectedProfile : undefined} initialSetup={setupPrefill} initialRules={hostingMode === 'custom' && selectedProfile ? { ...selectedProfile.rules } : rulesForHostingMode(hostingMode)} onBack={() => setScreen('home')} onStart={launchGame} onOpenReference={setReferenceContext} /> : null}
           {screen === 'personalization' ? <PersonalizationScreen
             profiles={preferences.profiles}
             selectedProfileId={preferences.selectedProfileId}

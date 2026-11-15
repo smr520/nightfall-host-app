@@ -106,7 +106,7 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
             flow: { ...rules.flow, identityCheck: identityCheck as NonNullable<Rules['flow']>['identityCheck'] },
           })}
         />
-        <Text style={type.footnote}>选“确认即行动”后不会增加开局核对步骤。法官按夜间顺序依次唤醒玩家：主持台先写出本步身份或阵营，确认后立即发动技能，用完闭眼，再叫下一个角色。</Text>
+        <Text style={type.footnote}>选“确认即行动”后不会增加开局核对步骤。法官按夜间顺序依次唤醒玩家：主持台先让主持人点选本步实际睁眼的座位，确认身份或阵营后立即发动技能，用完闭眼，再叫下一个角色。</Text>
         <Divider />
         <ChoiceRow
           label="放逐记录"
@@ -233,9 +233,10 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
   onOpenFlow: () => void;
 }) {
   const responsive = useResponsive();
+  const progressiveIdentity = supportedRules.flow?.identityCheck === 'during-night';
   return (
     <>
-      <Text accessibilityRole="header" style={type.title}>核对座位</Text>
+      <Text accessibilityRole="header" style={type.title}>{progressiveIdentity ? '确认座位，身份夜间核对' : '核对座位'}</Text>
       <View style={styles.summaryRow}>
         <Chip>{total} 人</Chip>
         <Chip tone="wolf">狼 {wolfCount}</Chip>
@@ -243,8 +244,10 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
         {thirdCount ? <Chip>第三方 {thirdCount}</Chip> : null}
         <Chip>{board.name}</Chip>
       </View>
-      <Text style={type.footnote}>姓名可以不填。点击身份可与另一座位互换，板子的角色和人数保持一致。身份默认对玩家隐藏，主持台可临时查看。{supportedRules.flow?.identityCheck === 'during-night' || supportedRules.flow?.identityCheck === 'at-nightfall' ? '开始后直接进入第一夜。按夜间行动流程依次唤醒：先显示本步身份或阵营，确认后立即行动，完成后再记录对应座位。' : '开始主持后直接进入第一夜。'}</Text>
-      <Button title="随机分配身份" variant="secondary" onPress={onShuffle} />
+      <Text style={type.footnote}>{progressiveIdentity
+        ? '这里只确认人数、姓名和座位，不再提前设定每个座位是什么身份牌。身份将在夜间逐项确认：轮到狼人、预言家等角色时，主持台先请你点选本步实际睁眼的座位，再进入刀人或技能操作。'
+        : `姓名可以不填。点击身份可与另一座位互换，板子的角色和人数保持一致。身份默认对玩家隐藏，主持台可临时查看。${supportedRules.flow?.identityCheck === 'at-nightfall' ? '开始后先完成逐座身份核对。' : '开始主持后直接进入第一夜。'}`}</Text>
+      {!progressiveIdentity ? <Button title="随机分配身份" variant="secondary" onPress={onShuffle} /> : null}
       {deal && deal.boardId === board.id ? <View style={[styles.group, styles.hostNotice]}>
         <Text accessibilityRole="header" style={type.headline}>底牌 · 仅主持人可见</Text>
         <Text style={type.body}>{deal.reserve.map(role => ROLES[role].name).join('、')}</Text>
@@ -252,7 +255,7 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
         <Button title="重新洗牌" variant="secondary" onPress={onRedeal} />
       </View> : null}
       <View style={[styles.seatList, responsive.isWideTablet && styles.seatListWide]}>
-        <View style={styles.seatTableHead}><Text style={[styles.seatTableNumber, { width: seatNumberWidth }]}>座位</Text><Text style={[type.caption, styles.flex]}>玩家姓名 · 可不填</Text><Text style={styles.seatTableRole}>身份</Text></View>
+        <View style={styles.seatTableHead}><Text style={[styles.seatTableNumber, { width: seatNumberWidth }]}>座位</Text><Text style={[type.caption, styles.flex]}>玩家姓名 · 可不填</Text><Text style={styles.seatTableRole}>{progressiveIdentity ? '确认方式' : '身份'}</Text></View>
         {players.map((player, index) => (
           <View key={index} style={responsive.isWideTablet ? styles.seatItemWide : undefined}>
             {index > 0 ? <Divider /> : null}
@@ -267,16 +270,20 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
                 style={styles.nameInput}
                 maxLength={12}
               />
-              <MotionPressable accessibilityRole="button" accessibilityLabel={`${index + 1}号身份 ${ROLES[player.role].name}，点击更改`} onPress={() => onRoleSeat(index)} style={styles.rolePill}>
-                <Text style={[styles.rolePillText, isWolf(player.role) && styles.rolePillWolf]}>{ROLES[player.role].short}</Text>
-              </MotionPressable>
+              {progressiveIdentity
+                ? <Text accessibilityLabel={`${index + 1}号身份将在夜间确认`} style={styles.seatTableRole}>夜间确认</Text>
+                : <MotionPressable accessibilityRole="button" accessibilityLabel={`${index + 1}号身份 ${ROLES[player.role].name}，点击更改`} onPress={() => onRoleSeat(index)} style={styles.rolePill}>
+                  <Text style={[styles.rolePillText, isWolf(player.role) && styles.rolePillWolf]}>{ROLES[player.role].short}</Text>
+                </MotionPressable>}
             </View>
           </View>
         ))}
       </View>
       <View style={styles.group}>
         <Text style={type.headline}>开局前核对</Text>
-        <Text style={type.footnote}>确认身份与座位，并按上一步约定的桌规开始第一夜。需要调整桌规可返回上一步。操作前确认手机仅主持人可见。</Text>
+        <Text style={type.footnote}>{progressiveIdentity
+          ? '确认姓名与座位后开始第一夜。身份不会在本页写入，主持人会按夜间行动逐步核对并记录。'
+          : '确认身份与座位，并按上一步约定的桌规开始第一夜。需要调整桌规可返回上一步。'}操作前确认手机仅主持人可见。</Text>
         {tableSummary.map(line => <Text key={line} style={type.footnote}>{line}</Text>)}
         <Button title="查看本局规则与角色" variant="secondary" onPress={onOpenReference} />
       </View>

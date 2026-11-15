@@ -61,6 +61,8 @@ export type LastWordsPolicy = {
   explode?: boolean;
 };
 
+export type DeathResolutionStep = 'last-words' | 'death-skill' | 'badge';
+
 export type TableRules = {
   /** Special published lineups may omit a civilian edge; victory must be confirmed by the host. */
   lineupMode?: 'standard' | 'free';
@@ -74,6 +76,8 @@ export type TableRules = {
   exileTie?: 'pk' | 'none';
   /** Fast mode records only the final exile seat and omits per-voter ballots. */
   exileRecord?: 'detailed' | 'quick';
+  /** Detailed exile ballots may target the voter when the table explicitly allows it. */
+  exileSelfVote?: boolean;
   /** Host-facing notes agreed before the game starts. */
   notes?: string;
 };
@@ -99,6 +103,8 @@ export type HostingFlow = {
   manualVictory?: boolean;
   /** 各类死亡是否进入独立遗言队列；全部缺省时保持旧流程。 */
   lastWords?: LastWordsPolicy;
+  /** 出局后的遗言、死亡技能和警徽处理顺序；缺省为遗言→技能→警徽。 */
+  deathResolutionOrder?: DeathResolutionStep[];
 };
 
 export type Night = {
@@ -205,6 +211,7 @@ export type Action =
   | { type: 'witch'; save: boolean; poison: number | null }
   | { type: 'call'; callId: string; target: number | null }
   | { type: 'confirm-identity'; seat: number }
+  | { type: 'assign-night-identity'; callId: NightCall; seats: number[] }
   | { type: 'dawn' }
   | { type: 'set-dawn-deaths'; deaths: { seat: number; cause: Cause }[]; reason: string }
   | { type: 'announce-dawn' }

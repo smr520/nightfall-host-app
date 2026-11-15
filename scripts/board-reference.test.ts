@@ -1,4 +1,4 @@
-import { BOARD_LIBRARY, countsFromRoles, isPlayable, nightCallsFor, type Board } from '../src/game/boards';
+import { BOARD_LIBRARY, countsFromRoles, isPlayable, type Board } from '../src/game/boards';
 import { BOARD_INTRODUCTIONS, boardIntroduction } from '../src/game/board-reference';
 import { isRole } from '../src/game/roles';
 
@@ -32,7 +32,7 @@ describe('board introductions', () => {
   it('describes custom profiles from current roles even when their id or name resembles a built-in board', () => {
     const roles = { wolf: 2, villager: 2, seer: 1, witch: 1 } as const;
     const counts = countsFromRoles(roles);
-    const custom: Board = { id: 'standard-12', name: '预女猎白', subtitle: '', tag: 'custom', playerCount: 6, roles, counts, night: nightCallsFor(counts) };
+    const custom: Board = { id: 'standard-12', name: '预女猎白', subtitle: '', tag: 'custom', playerCount: 6, roles, counts };
     const intro = boardIntroduction(custom);
     expect(intro.overview).toContain('6 人');
     expect(intro.overview).toContain('自定义');
@@ -44,7 +44,7 @@ describe('board introductions', () => {
 
   it('provides an actionable fallback for an unknown or empty lineup', () => {
     const counts = countsFromRoles({});
-    const intro = boardIntroduction({ id: 'new-user-board', name: '新阵容', subtitle: '', tag: 'custom', playerCount: 0, roles: {}, counts, night: [] });
+    const intro = boardIntroduction({ id: 'new-user-board', name: '新阵容', subtitle: '', tag: 'custom', playerCount: 0, roles: {}, counts });
     expect(intro.highlights.join('')).toContain('请先补齐阵容');
     expect(intro.overview).not.toContain('0 人');
   });

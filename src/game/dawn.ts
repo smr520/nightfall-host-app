@@ -5,6 +5,7 @@ import { queueLastWords } from './last-words';
 import type { Cause, Game, Player } from './types';
 import { alive, log, player } from './shared';
 import { beginNight } from './night';
+import { pendingResolutionRank } from './flow';
 
 export function nightDeaths(g: Game): { seat: number; cause: Cause }[] {
   if (g.night.manualDeaths) return g.night.manualDeaths.map(death => ({ ...death }));
@@ -168,13 +169,7 @@ export function end(g: Game, winner: 'good' | 'wolf' | 'third' | 'draw', reason:
 }
 
 export function advance(g: Game) {
-  // 遗言留在出局技能前；死亡技能优先于警徽，避免警徽交给同一批尚未处理的目标。
-  const rank = (kind: string) => {
-    if (kind === 'last-words') return 0;
-    if (kind === 'badge') return 2;
-    return 1;
-  };
-  g.pending.sort((a, b) => rank(a.kind) - rank(b.kind) || a.seat - b.seat);
+  g.pending.sort((a, b) => pendingResolutionRank(a.kind, g.rules.flow) - pendingResolutionRank(b.kind, g.rules.flow) || a.seat - b.seat);
   if (g.pending.length) { g.stage = g.pending[0].kind; return; }
   const result = g.rules.flow?.manualVictory ? null : victory(g);
   if (result) { end(g, result.winner, result.reason); return; }

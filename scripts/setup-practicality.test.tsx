@@ -73,7 +73,10 @@ describe('practical pregame controls', () => {
     app.press('当前板子 本桌阵容，点击更换');
     app.press(`选择板子：${BOARD_LIBRARY[0].name}`);
     app.press('下一步'); app.press('下一步'); app.press('开始主持');
-    expect(app.onStart.mock.calls[0][0].rules.flow).toBeUndefined();
+    expect(app.onStart.mock.calls[0][0].rules.flow).toEqual({
+      identityCheck: 'during-night',
+      nightOrder: ['wolves', 'seer', 'witch'],
+    });
     app.unmount();
   });
 

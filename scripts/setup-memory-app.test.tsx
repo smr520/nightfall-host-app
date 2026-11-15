@@ -59,7 +59,7 @@ describe('remembered setup through the app', () => {
     return { renderer, button, press, field, text };
   }
 
-  it('saves the first completed setup and starts the next game from it in one step', async () => {
+  it('saves the first completed setup and requires setup reconfirmation before the next game', async () => {
     const first = await mountApp();
     first.press('新建一场对局');
     act(() => first.field('对局名称').props.onChangeText('复用测试局'));
@@ -83,18 +83,23 @@ describe('remembered setup through the app', () => {
     const second = await mountApp();
     expect(second.text()).toContain('上次开局已记住');
     expect(second.text()).toContain(BOARD_LIBRARY[0].name);
-    second.press('按上次设置直接开局');
+    second.press('沿用上次设置，重新确认');
+    expect(second.text()).toContain('已带入上次开局设置');
+    expect(second.text()).toContain('本次仍会进入座位确认');
+    second.press('下一步');
+    second.press('下一步');
+    second.press('开始主持');
     await flush();
 
     const session = jest.mocked(persistSession).mock.calls.at(-1)?.[0] as Session;
     expect(session.current.name).toBe('复用测试局');
     expect(session.current.players[0].name).toBe('阿明');
-    expect(session.current.players.map(player => player.role)).toEqual(remembered!.lastSetup!.roles);
+    expect(session.current.players.map(player => player.role).sort()).toEqual([...remembered!.lastSetup!.roles].sort());
     expect(session.current.rules.win).toBe('all');
     act(() => second.renderer.unmount());
   });
 
-  it('confirms before replacing an active game and then reuses the remembered setup', async () => {
+  it('keeps the active game until remembered setup is reconfirmed for replacement', async () => {
     const alert = jest.spyOn(Alert, 'alert');
     const first = await mountApp();
     first.press('新建一场对局');
@@ -104,7 +109,13 @@ describe('remembered setup through the app', () => {
     first.press('返回');
     await flush();
     expect(first.text()).toContain('上次开局已记住');
-    first.press('按上次设置直接开局');
+    first.press('沿用上次设置，重新确认');
+    await flush();
+    expect(clearSession).not.toHaveBeenCalled();
+    expect(first.text()).toContain('已带入上次开局设置');
+    first.press('下一步');
+    first.press('下一步');
+    first.press('开始主持');
     const confirm = alert.mock.calls.at(-1)?.[2]?.find(item => item.text === '放弃并新开');
     expect(confirm).toBeDefined();
     await act(async () => { confirm?.onPress?.(); });
@@ -114,7 +125,7 @@ describe('remembered setup through the app', () => {
     const session = jest.mocked(persistSession).mock.calls.at(-1)?.[0] as Session;
     expect(session.current.id).not.toBe(firstId);
     expect(session.current.name).toBe('周末局');
-    expect(session.current.players.map(player => player.role)).toEqual(boardSeats(BOARD_LIBRARY[0]));
+    expect(session.current.players.map(player => player.role).sort()).toEqual([...boardSeats(BOARD_LIBRARY[0])].sort());
     alert.mockRestore();
     act(() => first.renderer.unmount());
   });

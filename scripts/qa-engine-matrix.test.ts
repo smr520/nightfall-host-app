@@ -1,4 +1,4 @@
-import { BOARD_LIBRARY, boardSeats } from '../src/game/boards';
+import { BOARD_LIBRARY, boardSeats, nightCallsFor } from '../src/game/boards';
 import { DEFAULT_RULES } from '../src/game/config';
 import { applyAction, createGame, nightDeaths, tally } from '../src/game/engine';
 import { isValidGame, decodeSession } from '../src/game/save-schema';
@@ -78,6 +78,11 @@ function randomAlive(game: Game, rng: Rng, predicate: (role: Role) => boolean = 
   return rng.pick(seats) ?? null;
 }
 
+function nonSelfVote(candidates: number[], voter: number, preferred: number | null): number | null {
+  if (preferred === null || preferred !== voter) return preferred;
+  return candidates.find(candidate => candidate !== voter) ?? null;
+}
+
 function settingsFor(boardId: string, profile: number): Rules {
   const base: Rules = { ...DEFAULT_RULES, sheriff: profile !== 0 && profile !== 4, win: profile % 2 === 0 ? 'edge' : 'all' };
   if (profile === 0) return { ...base, sheriff: false, flow: { keepDeadCalls: true }, table: { sheriffTie: 'none', exileTie: 'none', guardRepeat: true } };
@@ -85,7 +90,7 @@ function settingsFor(boardId: string, profile: number): Rules {
   if (profile === 2) return { ...base, sheriffTiming: 'after-announcement', hunterPoison: true, doubleMedicine: true, flow: { manualDawn: true }, table: { sheriffTie: 'pk', exileTie: 'none' } };
   if (profile === 3) {
     const board = BOARD_LIBRARY.find(item => item.id === boardId)!;
-    const nightOrder = [...board.night];
+    const nightOrder = nightCallsFor(board.counts);
     const seer = nightOrder.indexOf('seer');
     const wolves = nightOrder.indexOf('wolves');
     if (seer >= 0 && wolves >= 0 && seer > wolves) [nightOrder[seer], nightOrder[wolves]] = [nightOrder[wolves], nightOrder[seer]];
@@ -190,7 +195,10 @@ function simulate(scenario: MatrixScenario) {
           const abstainer = voters.pop()!;
           game = step(game, { type: 'ballot', voter: abstainer, target: null }, context);
         }
-        for (let index = 0; index < voters.length; index++) game = step(game, { type: 'ballot', voter: voters[index], target: tiedCandidates[index % 2] }, context);
+        for (let index = 0; index < voters.length; index++) {
+          const voter = voters[index];
+          game = step(game, { type: 'ballot', voter, target: nonSelfVote(tiedCandidates, voter, tiedCandidates[index % 2]) }, context);
+        }
         const tallyAfter = tally(game);
         const hasTie = tallyAfter.length > 1 && tallyAfter[0].votes === tallyAfter[1].votes && tallyAfter[0].votes > 0;
         game = step(game, { type: 'count' }, context);
@@ -198,7 +206,7 @@ function simulate(scenario: MatrixScenario) {
       } else {
         const wolves = vote.candidates.filter(seat => isWolf(game.players.find(player => player.seat === seat)!.role));
         const target = wolves[0] ?? vote.candidates[0] ?? null;
-        for (const voter of vote.voters) game = step(game, { type: 'ballot', voter, target }, context);
+        for (const voter of vote.voters) game = step(game, { type: 'ballot', voter, target: nonSelfVote(vote.candidates, voter, target) }, context);
         game = step(game, { type: 'count' }, context);
         if (game.vote?.round === 2) covered.pk = true;
       }

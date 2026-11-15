@@ -48,7 +48,7 @@ export function SeatsPage({ game, showRoles, onToggleRoles }: { game: Game; show
           <Text style={type.headline}>夜间行动身份记录</Text>
           <Text accessibilityLabel={`身份记录 ${identityConfirmed.length} / ${identityTotal} ${identityUnit}`} style={type.caption}>{identityConfirmed.length} / {identityTotal} {identityUnit}</Text>
         </View>
-        <Text style={type.footnote}>这不是开局确认步骤。夜间行动流程按顺序先确认身份或阵营，再执行技能；完成该步后，对应座位会自动追加到这里。</Text>
+        <Text style={type.footnote}>这不是开局确认步骤。夜间轮到某角色时，主持人先点选实际睁眼的座位，确认后才执行技能；确认后的座位会立即追加到这里。</Text>
         <Text selectable style={styles.identityProgress}>{identityConfirmed.length ? identityConfirmed.map(seat => `${seat} 号`).join('、') : '尚未记录；轮到第一个夜间角色行动时开始逐步确认。'}</Text>
       </View> : null}
 

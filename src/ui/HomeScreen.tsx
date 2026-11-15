@@ -84,7 +84,7 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
 
       <View style={[styles.newGame, current && styles.newGameCompact]}>
         <View style={styles.newGameHead}>
-          <View style={styles.flex}><Text style={styles.eyebrow}>开局准备</Text><Text accessibilityRole="header" style={styles.newTitle}>新对局</Text><Text style={type.footnote}>{lastSetup ? '上次设置已记住，可以直接再开一局。' : '选好板子，按本桌约定开始。'}</Text></View>
+          <View style={styles.flex}><Text style={styles.eyebrow}>开局准备</Text><Text accessibilityRole="header" style={styles.newTitle}>新对局</Text><Text style={type.footnote}>{lastSetup ? '上次设置只用来预填，每次开局都要重新确认。' : '选好板子，按本桌约定开始。'}</Text></View>
           {!current ? <View style={styles.cardStack} accessible={false} pointerEvents="none"><View style={styles.cardBack} /><View style={styles.cardFront}><Icon name="moon" size={30} strokeWidth={1.2} /></View></View> : <Icon name="plus" size={24} color={colors.textTertiary} />}
         </View>
         {!current && !lastSetup ? <View style={styles.preparationLine}>{['阵容', '桌规', '座位'].map((label, index) => <View key={label} style={styles.preparationStep}><Text style={styles.stepNumber}>{String(index + 1).padStart(2, '0')}</Text><Text style={styles.stepLabel}>{label}</Text>{index < 2 ? <View style={styles.stepRule} /> : null}</View>)}</View> : null}
@@ -92,7 +92,7 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
           <View style={styles.memoryHead}><Icon name="history" size={18} color={colors.textSecondary} /><Text style={styles.memoryLabel}>上次开局已记住</Text></View>
           <Text style={styles.memoryTitle}>{lastSetup.boardName} · {lastSetup.roles.length} 人</Text>
           <Text style={type.footnote}>{setupSummary(lastSetup)}</Text>
-          <Text style={styles.memoryHint}>直接再开一局会沿用板子、桌规和已填姓名；牌池型板子会重新洗牌。</Text>
+          <Text style={styles.memoryHint}>会沿用板子、桌规和姓名，但仍需走完座位确认；座位身份不会沿用上一局。</Text>
         </View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="调整方案" onPress={onPersonalize} style={({ pressed }) => [styles.scheme, pressed && styles.pressed]}>
           <Icon name="sliders" size={19} color={colors.textSecondary} />
@@ -101,7 +101,7 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
         </Pressable>
         {preferenceError ? <InlineError>{preferenceError}</InlineError> : null}
         <Button title="新建一场对局" onPress={onNew} disabled={disabled} variant={current && active ? 'secondary' : 'primary'} />
-        {lastSetup ? <Button title="按上次设置直接开局" variant="secondary" onPress={onRepeat ?? onNew} disabled={disabled} /> : null}
+        {lastSetup ? <Button title="沿用上次设置，重新确认" variant="secondary" onPress={onRepeat ?? onNew} disabled={disabled} /> : null}
       </View>
         </View>
 

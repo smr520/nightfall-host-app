@@ -12,7 +12,8 @@ function fixture(): Game {
 function castTiedBallots(original: Game): Game {
   let game = original;
   for (const [index, voter] of original.vote!.voters.entries()) {
-    game = applyAction(game, { type: 'ballot', voter, target: index % 2 === 0 ? 5 : 6 });
+    const preferred = index % 2 === 0 ? 5 : 6;
+    game = applyAction(game, { type: 'ballot', voter, target: preferred === voter ? preferred === 5 ? 6 : 5 : preferred });
   }
   return game;
 }
@@ -90,7 +91,7 @@ describe('hosting process reference', () => {
     const hunterSeat = game.players.find(player => player.role === 'hunter')!.seat;
     game.sheriff = hunterSeat;
     game = applyAction(game, { type: 'start-exile' });
-    for (const voter of game.vote!.voters) game = applyAction(game, { type: 'ballot', voter, target: hunterSeat });
+    for (const voter of game.vote!.voters) game = applyAction(game, { type: 'ballot', voter, target: voter === hunterSeat ? null : hunterSeat });
     game = applyAction(game, { type: 'count' });
     expect(game.pending.map(skill => skill.kind)).toEqual(['hunter', 'badge']);
     const progress = hostingProgress(game);

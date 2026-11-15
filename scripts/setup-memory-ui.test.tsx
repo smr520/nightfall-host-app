@@ -71,11 +71,12 @@ describe('remembered setup in the interface', () => {
     expect(app.field('1号玩家姓名').props.value).toBe('玩家1');
     expect(app.field('2号玩家姓名').props.value).toBe('玩家2');
 
-    app.press('直接开始');
+    expect(app.button('直接开始')).toBeUndefined();
+    app.press('开始主持');
     const game = onStart.mock.calls[0][0];
     const remembered = onStart.mock.calls[0][1] as SetupMemory;
     expect(game.name).toBe('上次周五局');
-    expect(game.players.map((player: { role: string }) => player.role)).toEqual(roles);
+    expect(game.players.map((player: { role: string }) => player.role).sort()).toEqual([...roles].sort());
     expect(game.players[0].name).toBe('玩家1');
     expect(game.players[2].name).toBe('3号玩家');
     expect(game.rules.speechSeconds).toBe(150);
@@ -97,17 +98,17 @@ describe('remembered setup in the interface', () => {
     app.press('下一步'); app.press('下一步');
     expect(app.field('1号玩家姓名').props.value).toBe('');
     app.press('开始主持');
-    expect(onStart.mock.calls[0][0].players.map((player: { role: string }) => player.role)).toEqual(boardSeats(BOARD_LIBRARY[0]));
+    expect(onStart.mock.calls[0][0].players.map((player: { role: string }) => player.role).sort()).toEqual([...boardSeats(BOARD_LIBRARY[0])].sort());
     alert.mockRestore();
     app.unmount();
   });
 
-  it('shows the last setup on the home screen and starts it directly', () => {
+  it('shows the last setup on the home screen and opens setup for reconfirmation', () => {
     const app = mountHome(setup);
     expect(app.text()).toContain('上次开局已记住');
     expect(app.text()).toContain(source.name);
     expect(app.text()).toContain('发言 150 秒');
-    const repeat = app.button('按上次设置直接开局');
+    const repeat = app.button('沿用上次设置，重新确认');
     expect(repeat).toBeDefined();
     act(() => repeat.props.onPress());
     expect(app.onRepeat).toHaveBeenCalledTimes(1);
@@ -118,7 +119,7 @@ describe('remembered setup in the interface', () => {
     const app = mountHome(undefined);
     expect(app.text()).not.toContain('上次开局已记住');
     expect(app.button('新建一场对局')).toBeDefined();
-    expect(app.button('按上次设置直接开局')).toBeUndefined();
+    expect(app.button('沿用上次设置，重新确认')).toBeUndefined();
     app.unmount();
   });
 });

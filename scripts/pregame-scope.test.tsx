@@ -35,7 +35,9 @@ describe('pregame lineup scope', () => {
   it('swaps two selected seat identities while preserving the chosen board, counts and names', () => {
     const onStart = jest.fn();
     const app = mount(<SetupScreen mode="standard" initialRules={DEFAULT_RULES} onBack={jest.fn()} onStart={onStart} />);
-    app.press('下一步'); app.press('下一步');
+    app.press('下一步');
+    app.press('夜间行动流程 发牌后自行看牌');
+    app.press('下一步');
     act(() => app.renderer.root.findByProps({ accessibilityLabel: '1号玩家姓名' }).props.onChangeText('一号玩家'));
     act(() => app.renderer.root.findByProps({ accessibilityLabel: '9号玩家姓名' }).props.onChangeText('九号玩家'));
     app.press('1号身份 狼人，点击更改');
@@ -133,7 +135,7 @@ describe('pregame lineup scope', () => {
     const hunterOnly: Role[] = ['wolf', 'villager', 'seer', 'hunter'];
     expect(ruleSummary(quickRules, hunterOnly).join('\n')).toContain('猎人出局可开枪');
     expect(ruleSummary(quickRules, hunterOnly).join('\n')).not.toMatch(/女巫|被毒|白痴/);
-    expect(ruleSummary(DEFAULT_RULES)).toHaveLength(11);
+    expect(ruleSummary(DEFAULT_RULES)).toHaveLength(12);
     expect(ruleSummary(DEFAULT_RULES).join('\n')).toContain('夜间行动流程：发牌后自行看牌');
     expect(ruleSummary({
       ...DEFAULT_RULES,

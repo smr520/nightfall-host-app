@@ -4,7 +4,7 @@ import { speechDurationsSummary, speechSecondsForRules } from './speech';
 import { hasLastWordsPolicy, lastWordsPolicyLabels } from './last-words';
 import type { Role, Rules } from './types';
 import { tableRules } from './table-rules';
-import { shouldKeepDeadCalls } from './flow';
+import { DEFAULT_DEATH_RESOLUTION_ORDER, deathResolutionOrder, shouldKeepDeadCalls } from './flow';
 
 export { ROLES, ROLE_IDS };
 export { BOARD_LIBRARY, OFFICIAL_BOARDS, TOURNAMENT_BOARDS, CLASSIC_BOARDS, boardById, boardSeats, isPlayable } from './boards';
@@ -132,7 +132,11 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
     r.sheriff ? `首日顺序：${r.sheriffTiming === 'after-announcement' ? '先公布死亡，再竞选' : '先竞选，再公布死亡'}；死亡技能、警徽处理后判胜负` : '首日无警长竞选，确认夜间结果后进入白天',
     ...(r.sheriff ? [`警长平票：${table.sheriffTie === 'pk' ? 'PK 一轮，再平票则警徽流失' : '不 PK，警徽流失'}`] : []),
     `放逐记录：${table.exileRecord === 'quick' ? '快速记录最终被票出者，不逐人录票' : '逐人录票并自动处理平票'}`,
+    ...(table.exileRecord === 'quick' ? [] : [`放逐自投：${table.exileSelfVote ? '允许' : '禁止'}`]),
     ...(table.exileRecord === 'quick' ? [] : [`放逐平票：${table.exileTie === 'pk' ? 'PK 一轮，再平票则无人出局' : '不 PK，无人出局'}`]),
+    ...(deathResolutionOrder(r.flow).some((step, index) => step !== DEFAULT_DEATH_RESOLUTION_ORDER[index])
+      ? [`出局结算顺序：${deathResolutionOrder(r.flow).map(step => step === 'last-words' ? '遗言' : step === 'death-skill' ? '出局技能' : '警徽').join(' → ')}`]
+      : []),
     ...(lastWords ? [lastWords] : []),
     ...(r.speechDurations ? [`分阶段计时：${speechDurationsSummary(r)}`] : []),
     `已出局角色：${shouldKeepDeadCalls(r) ? '默认保留夜间口播，不录入行动' : '跳过后续夜间环节'}`,

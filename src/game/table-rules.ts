@@ -7,6 +7,7 @@ export type ResolvedTableRules = {
   sheriffTie: 'pk' | 'none';
   exileTie: 'pk' | 'none';
   exileRecord: 'detailed' | 'quick';
+  exileSelfVote: boolean;
   notes: string;
 };
 
@@ -22,6 +23,7 @@ export function tableRules(rules: Pick<Rules, 'table'> | TableRules | undefined)
     sheriffTie: value?.sheriffTie === 'none' ? 'none' : 'pk',
     exileTie: value?.exileTie === 'none' ? 'none' : 'pk',
     exileRecord: value?.exileRecord === 'quick' ? 'quick' : 'detailed',
+    exileSelfVote: value?.exileSelfVote === true,
     notes: typeof value?.notes === 'string' ? value.notes : '',
   };
 }
@@ -37,6 +39,7 @@ export function validateTableRules(value: unknown): value is TableRules | undefi
   if (table.sheriffTie !== undefined && table.sheriffTie !== 'pk' && table.sheriffTie !== 'none') return false;
   if (table.exileTie !== undefined && table.exileTie !== 'pk' && table.exileTie !== 'none') return false;
   if (table.exileRecord !== undefined && table.exileRecord !== 'detailed' && table.exileRecord !== 'quick') return false;
+  if (table.exileSelfVote !== undefined && typeof table.exileSelfVote !== 'boolean') return false;
   if (table.notes !== undefined && (typeof table.notes !== 'string' || table.notes.length > MAX_NOTES_LENGTH)) return false;
   return true;
 }

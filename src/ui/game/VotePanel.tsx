@@ -46,6 +46,11 @@ export function VotePanel({ game, draft, activeVoter, showRoles, speechClock, pa
   const unrecorded = vote.voters.filter(seat => vote.ballots[seat] === undefined);
   const selectedVoter = draft.voter !== null && vote.voters.includes(draft.voter) ? draft.voter : null;
   const editing = selectedVoter !== null && vote.ballots[selectedVoter] !== undefined;
+  const allowExileSelfVote = vote.kind !== 'exile' || tableRules(game.rules).exileSelfVote;
+  const legacySelfVote = vote.kind === 'exile'
+    && !allowExileSelfVote
+    && activeVoter !== null
+    && vote.ballots[activeVoter] === activeVoter;
   const remainingAbstain = () => Alert.alert('其余玩家全部弃票？', `将 ${unrecorded.map(seat => `${seat} 号`).join('、')} 记录为弃票。已经录入的票保持原结果。`, [
     { text: '继续录票', style: 'cancel' },
     { text: '确认其余弃票', onPress: () => doAction({ type: 'ballots', voters: unrecorded, target: null }) },
@@ -62,21 +67,30 @@ export function VotePanel({ game, draft, activeVoter, showRoles, speechClock, pa
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.voters}>
           {vote.voters.map(seat => {
             const recorded = vote.ballots[seat] !== undefined;
-            return <Pressable key={seat} accessibilityRole="button" accessibilityLabel={recorded ? `修改 ${seat} 号投票` : `待录 ${seat} 号`} accessibilityState={{ selected: activeVoter === seat }} onPress={() => patch({ voter: seat, selected: vote.ballots[seat] ?? null })} style={[styles.voter, activeVoter === seat && styles.active, recorded && activeVoter !== seat && styles.recorded]}>
+            return <Pressable key={seat} accessibilityRole="button" accessibilityLabel={recorded ? `修改 ${seat} 号投票` : `待录 ${seat} 号`} accessibilityState={{ selected: activeVoter === seat }} onPress={() => {
+              const recordedTarget = vote.ballots[seat] ?? null;
+              const targetAllowed = allowExileSelfVote || vote.kind !== 'exile' || recordedTarget !== seat;
+              patch({ voter: seat, selected: targetAllowed ? recordedTarget : null });
+            }} style={[styles.voter, activeVoter === seat && styles.active, recorded && activeVoter !== seat && styles.recorded]}>
               <Text style={[type.callout, activeVoter === seat && styles.activeText]}>{seat}号</Text>
               <Text style={[type.caption, activeVoter === seat && styles.activeText]}>{recorded ? vote.ballots[seat] === null ? '弃票 · 可改' : `→${vote.ballots[seat]} · 可改` : '待录'}</Text>
             </Pressable>;
           })}
         </ScrollView>
-        <Text style={type.footnote}>{editing ? `正在修改 ${selectedVoter} 号投票，确认后覆盖原票。` : activeVoter !== null ? `请选择 ${activeVoter} 号投给谁。已录的票也可以点开修改。` : '全部录齐；计票前仍可点选投票人改票。'}</Text>
-        <SeatGrid game={game} selected={draft.selected} onSelect={seat => patch({ selected: draft.selected === seat ? null : seat })} showRoles={showRoles} filter={player => vote.candidates.includes(player.seat)} />
+        <Text style={type.footnote}>{legacySelfVote ? `原票是 ${activeVoter} 号投给自己；当前桌规禁止自投，请重新选择目标或改为弃票。` : editing ? `正在修改 ${selectedVoter} 号投票，确认后覆盖原票。` : activeVoter !== null ? `请选择 ${activeVoter} 号投给谁。已录的票也可以点开修改。` : '全部录齐；计票前仍可点选投票人改票。'}</Text>
+        <SeatGrid game={game} selected={draft.selected} onSelect={seat => patch({ selected: draft.selected === seat ? null : seat })} showRoles={showRoles} filter={player => vote.candidates.includes(player.seat) && (allowExileSelfVote || activeVoter === null || player.seat !== activeVoter)} />
+        {vote.kind === 'exile' && !allowExileSelfVote ? <Text style={type.footnote}>本桌禁止自投，当前投票人的座位不会出现在可选目标中。</Text> : null}
         {editing ? <Button title="取消改票" small variant="ghost" onPress={() => patch({ voter: null, selected: null })} /> : null}
       </> : <>
         <Text style={type.callout}>1. 选择得票人</Text>
-        <SeatGrid game={game} selected={draft.selected} onSelect={seat => patch({ selected: draft.selected === seat ? null : seat })} showRoles={showRoles} filter={player => vote.candidates.includes(player.seat)} />
+        <SeatGrid game={game} selected={draft.selected} onSelect={seat => patch({
+          selected: draft.selected === seat ? null : seat,
+          ...(vote.kind === 'exile' && !allowExileSelfVote ? { batchVoters: draft.batchVoters.filter(voter => voter !== seat) } : {}),
+        })} showRoles={showRoles} filter={player => vote.candidates.includes(player.seat)} />
         <Divider />
         <Text style={type.callout}>2. 选择投给他的玩家 · 已选 {draft.batchVoters.length} 人</Text>
-        <View testID="batch-voter-grid"><SeatGrid game={game} selected={null} multi={draft.batchVoters} onSelect={seat => patch({ batchVoters: draft.batchVoters.includes(seat) ? draft.batchVoters.filter(item => item !== seat) : [...draft.batchVoters, seat].sort((a, b) => a - b) })} showRoles={showRoles} filter={player => vote.voters.includes(player.seat)} /></View>
+        <View testID="batch-voter-grid"><SeatGrid game={game} selected={null} multi={draft.batchVoters} onSelect={seat => patch({ batchVoters: draft.batchVoters.includes(seat) ? draft.batchVoters.filter(item => item !== seat) : [...draft.batchVoters, seat].sort((a, b) => a - b) })} showRoles={showRoles} filter={player => vote.voters.includes(player.seat) && (allowExileSelfVote || draft.selected === null || player.seat !== draft.selected)} /></View>
+        {vote.kind === 'exile' && !allowExileSelfVote ? <Text style={type.footnote}>本桌禁止自投，当前得票人不会出现在可选的投票人中。</Text> : null}
         <Text style={type.footnote}>按现场举手情况多选，再一次确认。已录玩家可重新选择，更新其原票；警长票权自动计算。</Text>
       </>}
       {unrecorded.length ? <Button title={`其余 ${unrecorded.length} 人全部弃票`} small variant="ghost" onPress={remainingAbstain} /> : null}

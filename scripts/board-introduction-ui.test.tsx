@@ -76,7 +76,10 @@ describe('board-library introductions', () => {
     app.press('查看介绍：狼美人骑士', app.library());
     const preview = BOARD_LIBRARY.find(board => board.id === 'wolf-beauty-knight')!;
     app.press('查看本板角色技能', app.introduction());
-    expect(app.onOpenReference).toHaveBeenCalledWith({ roles: boardSeats(preview), rules: DEFAULT_RULES });
+    expect(app.onOpenReference).toHaveBeenCalledWith({
+      roles: boardSeats(preview),
+      rules: expect.objectContaining({ ...DEFAULT_RULES, flow: { identityCheck: 'during-night' } }),
+    });
     expect(app.onOpenReference.mock.calls[0][0].roles).toContain('knight');
     expect(app.onOpenReference.mock.calls[0][0].roles).not.toContain('hunter');
     app.press('用这个板子', app.library());
@@ -131,7 +134,9 @@ describe('board-library introductions', () => {
 
   it('returns Android back through introduction and library, and keeps current seat swaps when reused', () => {
     const app = mount();
-    app.press('下一步'); app.press('下一步');
+    app.press('下一步');
+    app.press('夜间行动流程 发牌后自行看牌');
+    app.press('下一步');
     act(() => app.renderer.root.findByProps({ accessibilityLabel: '1号玩家姓名' }).props.onChangeText('一号主持友'));
     app.press('1号身份 狼人，点击更改');
     app.press('与9号互换身份（预言家）');

@@ -1,4 +1,4 @@
-import type { Cause, Game, Rules } from './types';
+import type { Cause, Game, NightCall, Rules } from './types';
 import type { Role } from './roles';
 import { ROLES, isWolf } from './roles';
 
@@ -26,6 +26,12 @@ export function roleDeathSkill(role: Role, cause: Cause, rules: Rules): DeathSki
 
 export function canSelfExplode(role: Role): boolean {
   return isWolf(role) && ROLES[role].canSelfExplode !== false && !NO_SELF_EXPLOSION.has(role);
+}
+
+/** Shared by the host controls and action validation so a visible skip is always legal. */
+export function canSkipNightAction(call: NightCall): boolean {
+  if (call === 'nine-tails' || call === 'dancer') return false;
+  return call === 'wolves' || ROLES[call].night?.canSkip !== false;
 }
 
 /** 界面与引擎共用同一判断，避免“按钮可选但结算拒绝”。 */

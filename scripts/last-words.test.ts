@@ -85,7 +85,7 @@ describe('independent last-words queue', () => {
     game.sheriffDone = true;
     game = applyAction(game, { type: 'start-exile' });
     for (const voter of game.vote!.voters) {
-      game = applyAction(game, { type: 'ballot', voter, target: 8 });
+      game = applyAction(game, { type: 'ballot', voter, target: voter === 8 ? 7 : 8 });
     }
     game = applyAction(game, { type: 'count' });
     expect(game.stage).toBe('last-words');

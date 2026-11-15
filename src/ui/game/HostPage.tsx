@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
-import { callActorStatus, callIdentitySeats, getNightAnnouncement, nightIdentitySeats } from '../../game/engine';
+import { callActorStatus, callIdentitySeats, getNightAnnouncement, nightCallIdentityConfirmed, nightIdentitySeats } from '../../game/engine';
 import { isNightStage } from '../../game/host-ui';
 import { hostingProgress } from '../../game/hosting-reference';
 import { hostNarration, latestPublicOutcome } from '../../game/narration';
@@ -48,6 +48,7 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const headlineTextStyle = { fontSize: hostText.headlineSize, lineHeight: hostText.headlineLineHeight };
   const scriptTextStyle = { fontSize: hostText.scriptSize, lineHeight: hostText.scriptLineHeight };
   const privateTextStyle = { fontSize: hostText.privateSize, lineHeight: hostText.privateLineHeight };
+  const ruleTextStyle = { fontSize: Math.max(15, hostText.privateSize), lineHeight: Math.max(23, hostText.privateLineHeight) };
   const narrationGame = dawnDraftNeedsConfirmation(game, draft.dawn) ? { ...game, night: { ...game.night, manualDeaths: undefined } } : game;
   const narration = hostNarration(narrationGame, info.script, { selected: draft.selected, activeVoter, speaker: speechClock.speaker, signup: draft.signup, pkSpeaking: draft.pkSpeaking, voteMode: draft.voteMode, batchVoters: draft.batchVoters, editingVoter: draft.voter });
   const recentOutcome = draft.selected === null && draft.poison === null && !draft.save && speechClock.speaker === null ? latestPublicOutcome(game) : null;
@@ -62,17 +63,23 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const progressiveIdentity = night
     && stage !== 'identity-check'
     && (identityMode === 'during-night' || identityMode === 'at-nightfall' && identityConfirmed.length >= game.players.length);
-  const identitySeats = progressiveIdentity ? callIdentitySeats(game, stage as NightCall) : [];
+  const expectedIdentitySeats = progressiveIdentity ? callIdentitySeats(game, stage as NightCall) : [];
+  const identityRequired = progressiveIdentity
+    && identityMode === 'during-night'
+    && !nightCallIdentityConfirmed(game, stage as NightCall);
+  const identitySeats = expectedIdentitySeats.filter(seat => identityConfirmed.includes(seat));
   const identityTotal = progressiveIdentity
     ? identityMode === 'at-nightfall' ? game.players.length : nightIdentitySeats(game).length
     : 0;
   const identityUnit = identityMode === 'at-nightfall' ? '个已确认座位' : '个夜间行动座位';
   const identityLabel = stage === 'wolves' ? '狼人阵营' : ROLES[stage as keyof typeof ROLES]?.name ?? '当前角色';
-  const identityHint = actorStatus.blockedByFear
+  const identityHint = identityRequired
+    ? `请按本局实际身份牌，选出本步应睁眼的 ${expectedIdentitySeats.length} 个座位。`
+    : actorStatus.blockedByFear
     ? '角色仍存活，但本夜被恐惧，不能行动；本步仍保留身份核对。'
     : !actorStatus.hasActor
       ? '角色已出局，按赛前设置保留空唤醒，不录入行动。'
-      : '先核对本步身份或阵营，确认后立即完成本步技能。';
+      : '本步身份已确认，立即完成本步技能。';
 
   return (
     <View style={styles.flex}>
@@ -89,6 +96,19 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
           </View>
           <Text accessibilityRole="header" accessibilityLabel="本环节大字提示" style={[styles.speechHeadline, headlineTextStyle, (stage === 'dawn' || stage === 'dawn-announcement' || stage === 'hunter' || stage === 'shot' || stage === 'link') && styles.outcomeHeadline]}>{narration.headline}</Text>
           <View style={styles.scriptTextWrap}><Text accessibilityLabel="完整主持台词" selectable style={[styles.script, scriptTextStyle]}>{narration.spoken}</Text></View>
+        </View>
+
+        <View style={styles.stepGuide}>
+          <View style={styles.stepGuideHead}>
+            <Icon name="check" size={17} color={colors.text} />
+            <Text accessibilityRole="header" style={styles.stepGuideTitle}>本步必须完成</Text>
+          </View>
+          <Text accessibilityLabel="本步必须完成内容" selectable style={[styles.stepGuideText, ruleTextStyle]}>{progress.check}</Text>
+          {info.help ? <View style={styles.stepRule}>
+            <Text accessibilityRole="header" style={styles.stepRuleTitle}>规则提醒</Text>
+            <Text accessibilityLabel="本步规则提醒" selectable style={[styles.stepGuideText, ruleTextStyle]}>{info.help}</Text>
+          </View> : null}
+          {narration.privateNote ? <Text style={type.footnote}>私密刀口、身份和技能目标只显示在下方“仅主持人看”区域。</Text> : null}
         </View>
 
         {stage !== 'ended' ? <View style={styles.operationHead}><View style={styles.scriptEyebrow}><Icon name="shield" size={16} color={colors.textTertiary} /><Text style={[styles.operationLabel, { fontSize: hostText.operationSize }]}>主持人操作</Text></View><Text style={styles.operationHint}>以下内容不用念</Text></View> : null}
@@ -108,12 +128,33 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
             <View style={styles.rowBetween}>
               <View style={styles.identityHead}>
                 <Icon name="eye" size={18} color={colors.textSecondary} />
-                <Text style={type.headline}>本步身份/阵营</Text>
+                <Text style={type.headline}>{identityRequired ? '确认本步身份/阵营' : '本步身份/阵营'}</Text>
               </View>
               <Text accessibilityLabel={`身份记录 ${identityConfirmed.length} / ${identityTotal} ${identityUnit}`} style={type.caption}>已记 {identityConfirmed.length} / {identityTotal} {identityUnit}</Text>
             </View>
-            <Text accessibilityLabel="本步身份座位" selectable style={styles.identitySeats}>{identitySeats.length ? identitySeats.map(seat => `${seat}号`).join('、') : '暂无可显示座位'}</Text>
-            <Text style={type.footnote}>{identityLabel}。{identityHint}完成本步后自动记入身份记录；公开台词仍只念角色名，不念座位号。</Text>
+            {identityRequired ? <>
+              <Text accessibilityLabel="本步身份选择说明" style={type.footnote}>请点选本步实际睁眼的座位。选定 {expectedIdentitySeats.length} 个座位后才能进行本步行动；身份不会在赛前预设。</Text>
+              <SeatGrid
+                game={game}
+                selected={null}
+                multi={draft.identitySeats}
+                onSelect={seat => patch({
+                  identitySeats: draft.identitySeats.includes(seat)
+                    ? draft.identitySeats.filter(item => item !== seat)
+                    : draft.identitySeats.length >= expectedIdentitySeats.length
+                      ? draft.identitySeats
+                      : [...draft.identitySeats, seat],
+                })}
+                showRoles={false}
+                tapDead
+              />
+              <Text accessibilityLabel="本步身份选择进度" style={styles.pickedLine}>
+                已选：{draft.identitySeats.length ? draft.identitySeats.map(seat => `${seat}号`).join('、') : '尚未选择'}
+              </Text>
+            </> : <>
+              <Text accessibilityLabel="本步身份座位" selectable style={styles.identitySeats}>{identitySeats.length ? identitySeats.map(seat => `${seat}号`).join('、') : '暂无可显示座位'}</Text>
+            </>}
+            <Text style={type.footnote}>{identityLabel}。{identityHint}{identityRequired ? '' : '公开台词仍只念角色名，不念座位号。'}</Text>
           </Card>
         ) : null}
 
@@ -162,7 +203,7 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
           </Card>
         ) : null}
 
-        {night && stage !== 'witch' ? (
+        {night && stage !== 'witch' && !identityRequired ? (
           <Card style={styles.panel}>
             <View style={styles.rowBetween}>
               <Text style={type.headline}>{meta?.night?.targetLabel ?? '记录狼队刀口'}</Text>
@@ -215,7 +256,7 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
           </Card>
         ) : null}
 
-        {stage === 'witch' ? <WitchPanel game={game} showRoles={showRoles} draft={draft} patch={patch} actorStatus={actorStatus} /> : null}
+        {stage === 'witch' && !identityRequired ? <WitchPanel game={game} showRoles={showRoles} draft={draft} patch={patch} actorStatus={actorStatus} /> : null}
 
         {stage === 'sheriff-signup' ? (
           <Card style={styles.panel}>

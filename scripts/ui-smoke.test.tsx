@@ -71,6 +71,7 @@ describe('host screen UI regression', () => {
     if (!buttons().some(item => item.props.accessibilityLabel === '新建一场对局')) throw new Error(`Home did not render. Buttons: ${buttons().map(item => String(item.props.accessibilityLabel)).join('|')}; text: ${renderer.root.findAllByType(Text).map(node => String(node.props.children)).join('|')}`);
     press('新建一场对局');
     press('下一步');
+    press('夜间行动流程 发牌后自行看牌');
     press('下一步');
     press('开始主持');
     expect(buttons().some(item => item.props.accessibilityLabel === '选择刀口，或空刀')).toBe(true);
@@ -95,11 +96,9 @@ describe('host screen UI regression', () => {
     expect(buttons().some(item => item.props.accessibilityLabel === '选择查验目标，或空过')).toBe(true);
     await act(async () => { await Promise.resolve(); });
     press('返回');
-    const confirmation = jest.spyOn(Alert, 'alert');
     press('新建一场对局');
-    expect(confirmation).toHaveBeenCalledWith('当前对局还没结束', expect.any(String), expect.any(Array));
-    expect(buttons().some(item => item.props.accessibilityLabel === '继续主持')).toBe(true);
-    confirmation.mockRestore();
+    expect(renderer.root.findAllByType(Text).some(node => String(node.props.children) === '新建对局')).toBe(true);
+    expect(buttons().some(item => item.props.accessibilityLabel === '开始主持')).toBe(false);
     await flush(); act(() => renderer.unmount());
   });
 
@@ -272,7 +271,11 @@ describe('host screen UI regression', () => {
     expect(app.renderer.root.findAll(node => node.props.testID === 'main-navigation')).toHaveLength(0);
     app.press('返回');
     expect(app.renderer.root.findAll(node => node.props.testID === 'main-navigation').length).toBeGreaterThan(0);
-    app.press('新建一场对局'); app.press('下一步'); app.press('下一步'); app.press('开始主持');
+    app.press('新建一场对局');
+    app.press('下一步');
+    app.press('夜间行动流程 发牌后自行看牌');
+    app.press('下一步');
+    app.press('开始主持');
     expect(app.renderer.root.findAll(node => node.props.testID === 'main-navigation')).toHaveLength(0);
     expect(app.button('选择刀口，或空刀')).toBeDefined();
     await flush(); act(() => app.renderer.unmount());
@@ -498,7 +501,7 @@ describe('host screen UI regression', () => {
     restarted.press('新建一场对局');
     restarted.press('下一步'); restarted.press('下一步'); restarted.press('开始主持');
     const game = jest.mocked(persistSession).mock.calls.at(-1)?.[0].current;
-    expect(game?.players.map(player => player.role)).toEqual(profileFixture().roles);
+    expect(game?.players.map(player => player.role).sort()).toEqual([...profileFixture().roles].sort());
     expect(game?.rules).toMatchObject({ sheriff: false, win: 'all', selfSave: 'never' });
     await flush(); act(() => restarted.renderer.unmount());
   });
@@ -734,6 +737,7 @@ describe('host screen UI regression', () => {
     app.press(`当前板子 ${BOARD_LIBRARY[0].name}，点击更换`);
     app.press('选择板子：狼美人骑士');
     app.press('下一步');
+    app.press('夜间行动流程 发牌后自行看牌');
     app.press('下一步');
     app.press('开始主持');
     expect(app.button('选择守护目标，或空守')).toBeDefined();
@@ -754,6 +758,7 @@ describe('host screen UI regression', () => {
     act(() => app.renderer.root.findByProps({ accessibilityLabel: '增加预言家' }).props.onPress());
     app.press('用这套阵容');
     app.press('下一步');
+    app.press('夜间行动流程 发牌后自行看牌');
     app.press('下一步');
     app.press('开始主持');
     expect(app.button('选择刀口，或空刀')).toBeDefined();

@@ -1,4 +1,4 @@
-import { callActorStatus, callIdentitySeats, callIsActive, getNightAnnouncement, knifeActors, tally } from './engine';
+import { callActorStatus, callIdentitySeats, callIsActive, getNightAnnouncement, knifeActors, nightCallIdentityConfirmed, tally } from './engine';
 import { isRole, isWolf, ROLES } from './roles';
 import type { Game, Stage } from './types';
 import { tableRules } from './table-rules';
@@ -99,11 +99,18 @@ function nightSpeech(game: Game): string {
 function nightPrivateNote(game: Game, selected: number | null): string {
   const role = game.stage === 'wolves' ? 'wolf' : game.stage;
   if (!isRole(role)) return '';
-  const status = callActorStatus(game, game.stage === 'wolves' ? 'wolves' : role);
+  const call = game.stage === 'wolves' ? 'wolves' : role;
+  const status = callActorStatus(game, call);
   const actors = game.stage === 'wolves' ? knifeActors(game) : game.players.filter(player => player.alive && player.role === role);
-  const identitySeats = callIdentitySeats(game, game.stage === 'wolves' ? 'wolves' : role);
+  const allIdentitySeats = callIdentitySeats(game, call);
+  const confirmed = new Set(game.identityConfirmed ?? []);
+  const identitySeats = allIdentitySeats.filter(seat => confirmed.has(seat));
   const identityLabel = game.stage === 'wolves' ? '狼人阵营' : ROLES[role].name;
-  const identityPrefix = `仅主持人核对。本步身份/阵营：${seatList(identitySeats) || '无'}（${identityLabel}）。`;
+  const identityPending = game.rules.flow?.identityCheck === 'during-night' && !nightCallIdentityConfirmed(game, call);
+  const identityPrefix = identityPending
+    ? `仅主持人核对。本步身份待确认：请在主持台点选实际睁眼的 ${allIdentitySeats.length} 个座位（${identityLabel}），确认后再执行技能。`
+    : `仅主持人核对。本步身份/阵营：${seatList(identitySeats) || '无'}（${identityLabel}）。`;
+  if (identityPending) return identityPrefix;
   if (!status.hasActor) return `${identityPrefix}本角色已出局，${shouldKeepDeadCalls(game.rules) ? '按赛前设置照常念完睁眼、行动、闭眼台词，避免通过省略流程暴露身份。' : '本夜无需行动。'}无需选择目标，点击下方按钮继续。`;
   if (status.blockedByFear) return `${identityPrefix}本角色仍存活，但本夜被噩梦之影恐惧，不能行动。公开台词仍照常念完，避免通过流程判断恐惧目标；无需选择目标，点击下方按钮继续。`;
   let note = `${identityPrefix}本步行动座位：${seatList(actors.map(player => player.seat)) || '无存活角色'}。先确认身份/阵营，再立即执行本步技能。`;

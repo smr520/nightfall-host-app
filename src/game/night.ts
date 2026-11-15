@@ -45,15 +45,38 @@ export function nightIdentitySeats(g: Game): number[] {
   return [...new Set(g.nightCalls.flatMap(call => callIdentitySeats(g, call)))].sort((left, right) => left - right);
 }
 
-function recordNightCallIdentity(g: Game, call: NightCall) {
-  if (g.rules.flow?.identityCheck !== 'during-night') return;
+/** A during-night call is ready only after every seat that should wake has been confirmed. */
+export function nightCallIdentityConfirmed(g: Game, call: NightCall) {
+  if (g.rules.flow?.identityCheck !== 'during-night') return true;
   const confirmed = new Set(g.identityConfirmed ?? []);
-  const added = callIdentitySeats(g, call).filter(seat => !confirmed.has(seat));
-  if (!added.length) return;
-  added.forEach(seat => confirmed.add(seat));
+  return callIdentitySeats(g, call).every(seat => confirmed.has(seat));
+}
+
+/**
+ * Move the current action's role group onto the seats selected by the host.
+ * Complete role swaps keep the board counts unchanged.
+ */
+export function assignNightCallIdentity(g: Game, call: NightCall, seats: number[]) {
+  const previous = callIdentitySeats(g, call);
+  const previousSeats = new Set(previous);
+  const selected = [...seats].sort((left, right) => left - right);
+  const selectedSeats = new Set(selected);
+  const displaced = previous.filter(seat => !selectedSeats.has(seat));
+  const replacements = selected.filter(seat => !previousSeats.has(seat));
+  displaced.forEach((oldSeat, index) => {
+    const replacementSeat = replacements[index];
+    if (replacementSeat === undefined) return;
+    const oldPlayer = g.players.find(player => player.seat === oldSeat)!;
+    const replacement = g.players.find(player => player.seat === replacementSeat)!;
+    const oldRole = oldPlayer.role;
+    oldPlayer.role = replacement.role;
+    replacement.role = oldRole;
+  });
+  const confirmed = new Set(g.identityConfirmed ?? []);
+  selected.forEach(seat => confirmed.add(seat));
   g.identityConfirmed = [...confirmed].sort((left, right) => left - right);
   const label = call === 'wolves' ? '狼人阵营' : ROLES[call].name;
-  log(g, `夜间身份记录：${added.map(seat => `${seat} 号`).join('、')}为${label}`);
+  log(g, `夜间身份确认：${selected.map(seat => `${seat} 号`).join('、')}为${label}`);
 }
 
 /** Distinguish an unavailable dead role from a living role blocked by fear. */
@@ -103,7 +126,6 @@ export function callIsActive(g: Game, call: NightCall) {
 
 /** 从当前行动推进到下一个仍需执行的夜间行动 */
 export function nextNightCall(g: Game, from: NightCall | null) {
-  if (from !== null) recordNightCallIdentity(g, from);
   const start = from === null ? 0 : g.nightCalls.indexOf(from) + 1;
   for (let i = Math.max(start, 0); i < g.nightCalls.length; i++) {
     const call = g.nightCalls[i];

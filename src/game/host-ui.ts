@@ -1,5 +1,6 @@
 import { ROLES } from './roles';
-import type { Stage } from './types';
+import { canSkipNightAction } from './role-behavior';
+import type { NightCall, Stage } from './types';
 
 export type GameWinner = 'good' | 'wolf' | 'third' | 'draw';
 
@@ -21,16 +22,17 @@ export function getStageActionLabel({
   selectedVoter: number | null;
   voteRecorded: boolean;
 }): string {
-  if (stage === 'guard') return !targetRequired ? '守卫已出局，跳过并继续' : selectedTarget === null ? '选择守护目标，或空守' : `确认守护 ${selectedTarget} 号`;
-  if (stage === 'wolves') return !targetRequired ? '无存活狼人，跳过并继续' : selectedTarget === null ? '选择刀口，或空刀' : `确认刀口：${selectedTarget} 号`;
-  if (stage === 'seer') return !targetRequired ? '预言家已出局，跳过并继续' : selectedTarget === null ? '选择查验目标，或空过' : `确认查验 ${selectedTarget} 号`;
+  if (stage === 'guard') return !targetRequired ? '守卫已出局，跳过并继续' : selectedTarget === null ? canSkipNightAction(stage) ? '选择守护目标，或空守' : '选择守护目标' : `确认守护 ${selectedTarget} 号`;
+  if (stage === 'wolves') return !targetRequired ? '无存活狼人，跳过并继续' : selectedTarget === null ? canSkipNightAction(stage) ? '选择刀口，或空刀' : '选择刀口' : `确认刀口：${selectedTarget} 号`;
+  if (stage === 'seer') return !targetRequired ? '预言家已出局，跳过并继续' : selectedTarget === null ? canSkipNightAction(stage) ? '选择查验目标，或空过' : '选择查验目标' : `确认查验 ${selectedTarget} 号`;
   if (stage === 'witch') return !targetRequired ? '女巫已出局，跳过并继续' : '确认女巫用药';
   if (isNightStage(stage)) {
     const role = stage as keyof typeof ROLES;
     const meta = ROLES[role];
     const label = meta.night?.targetLabel ?? '选择目标';
     if (!targetRequired) return `${meta.name}已出局，跳过并继续`;
-    return selectedTarget === null ? `${label}，或空过` : `确认${meta.name}目标：${selectedTarget} 号`;
+    if (selectedTarget !== null) return `确认${meta.name}目标：${selectedTarget} 号`;
+    return canSkipNightAction(stage as NightCall) ? `${label}，或空过` : label;
   }
   if (stage === 'dawn') return '确认夜间结算';
   if (stage === 'dawn-announcement') return '确认并公布昨夜结果';

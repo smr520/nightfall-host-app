@@ -142,7 +142,8 @@ function pkGame() {
   expect(game.vote?.candidates).toEqual([1, 2, 3, 4, 5, 7]);
   game = act(game, { type: 'ballots', voters: [1, 7], target: null });
   game = act(game, { type: 'ballots', voters: [2, 5], target: 3 });
-  game = act(game, { type: 'ballots', voters: [3, 4], target: 4 });
+  game = act(game, { type: 'ballots', voters: [3, 7], target: 4 });
+  game = act(game, { type: 'ballot', voter: 4, target: null });
   expect(tally(game).filter(row => row.votes > 0)).toEqual([{ seat: 3, votes: 2 }, { seat: 4, votes: 2 }]);
   return act(game, { type: 'count' });
 }

@@ -1,5 +1,5 @@
 import { DEFAULT_RULES } from './config';
-import { BOARD_LIBRARY, countsFromRoles, emptyCounts, nightCallsFor, type Board } from './boards';
+import { BOARD_LIBRARY, countsFromRoles, emptyCounts, type Board } from './boards';
 import { validateCounts } from './engine';
 import { validateFlow } from './flow';
 import { isRole } from './roles';
@@ -120,6 +120,7 @@ export function normalizePreferences(value: unknown): HostPreferences {
           ...(entry.rules.flow ? { flow: {
             ...entry.rules.flow,
             ...(entry.rules.flow.nightOrder ? { nightOrder: [...entry.rules.flow.nightOrder] } : {}),
+            ...(entry.rules.flow.deathResolutionOrder ? { deathResolutionOrder: [...entry.rules.flow.deathResolutionOrder] } : {}),
             ...(entry.rules.flow.scripts ? { scripts: { ...entry.rules.flow.scripts } } : {}),
           } } : {}),
         },
@@ -148,7 +149,7 @@ export function profileBoard(profile: HostingProfile): Board {
     && Object.entries(counts).every(([role, count]) => board.counts[role as Role] === count)) : undefined;
   return {
     id: `profile-${profile.id}`, name: profile.boardName, subtitle: `${profile.roles.length} 人 · 我的方案`, tag: 'custom',
-    playerCount: profile.roles.length, roles, counts, night: nightCallsFor(counts), note: `来自方案「${profile.name}」`,
+    playerCount: profile.roles.length, roles, counts, note: `来自方案「${profile.name}」`,
     ...(sourceBoard ? { sourceBoardId: sourceBoard.id } : {}),
     ...(sourceBoard?.catalog ? { catalog: sourceBoard.catalog } : {}),
   };

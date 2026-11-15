@@ -170,7 +170,7 @@ describe('just completed public outcomes', () => {
   function afterExile(): Game {
     let game = applyAction(atDawn({ flow: { nightOrder: ['wolves', 'seer', 'witch', 'guard'] } }, null, null), { type: 'dawn' });
     game = applyAction(game, { type: 'start-exile' });
-    for (const voter of game.vote!.voters) game = applyAction(game, { type: 'ballot', voter, target: 5 });
+    for (const voter of game.vote!.voters) game = applyAction(game, { type: 'ballot', voter, target: voter === 5 ? null : 5 });
     return applyAction(game, { type: 'count' });
   }
 

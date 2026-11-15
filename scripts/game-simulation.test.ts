@@ -78,6 +78,13 @@ function preferredWolfTarget(game: Game, random: SeededRandom, candidates: reado
   return random.pick(wolf) ?? random.pick(candidates) ?? null;
 }
 
+function nonSelfVoteTarget(game: Game, random: SeededRandom, candidates: readonly number[], preferred: number | null, voter: number): number | null {
+  if (preferred === null || preferred !== voter) return preferred;
+  const alternatives = candidates.filter(seat => seat !== voter);
+  const wolves = alternatives.filter(seat => isWolf(game.players.find(player => player.seat === seat)!.role));
+  return random.pick(wolves) ?? random.pick(alternatives) ?? null;
+}
+
 function checkInvariants(game: Game, context: string): void {
   const valid = isValidGame(game);
   expect(valid).toBe(true);
@@ -187,7 +194,9 @@ function simulate(scenario: Scenario): Game {
       case 'exile-vote': {
         const candidates = game.vote?.candidates ?? [];
         const target = preferredWolfTarget(game, random, candidates);
-        for (const voter of game.vote?.voters ?? []) game = runAction(game, { type: 'ballot', voter, target }, context);
+        for (const voter of game.vote?.voters ?? []) {
+          game = runAction(game, { type: 'ballot', voter, target: nonSelfVoteTarget(game, random, candidates, target, voter) }, context);
+        }
         game = runAction(game, { type: 'count' }, context);
         break;
       }

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { callTitle, countsFromRoles } from '../../game/boards';
-import { reconcileNightOrder, resolveNightOrder } from '../../game/flow';
+import { DEFAULT_DEATH_RESOLUTION_ORDER, deathResolutionOrder, reconcileNightOrder, resolveNightOrder } from '../../game/flow';
 import { ROLES, ROLE_IDS } from '../../game/roles';
 import { isValidSpeechSeconds, MAX_SPEECH_SECONDS, MIN_SPEECH_SECONDS, speechSecondsForRules, SPEECH_LABELS, type SpeechKind } from '../../game/speech';
-import type { HostingFlow, LastWordsPolicy, NightCall, Role, Rules, Stage } from '../../game/types';
+import type { DeathResolutionStep, HostingFlow, LastWordsPolicy, NightCall, Role, Rules, Stage } from '../../game/types';
 import { shouldKeepDeadCalls } from '../../game/flow';
 import { colors, radius, spacing, type } from '../../theme';
 import { Button, Card, InlineError, SwitchRow } from '../kit';
@@ -20,6 +20,7 @@ const fixedStages: { id: Stage; label: string }[] = [
 export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; rules: Rules; onChange: (rules: Rules) => void }) {
   const counts = countsFromRoles(Object.fromEntries(ROLE_IDS.map(role => [role, roles.filter(item => item === role).length])));
   const order = reconcileNightOrder(counts, rules.flow?.nightOrder);
+  const resolutionOrder = deathResolutionOrder(rules.flow);
   const [scriptStage, setScriptStage] = useState<Stage>('discussion');
   const [error, setError] = useState('');
   const [duration, setDuration] = useState(String(rules.speechSeconds));
@@ -34,6 +35,14 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
     const next = [...order]; [next[index], next[destination]] = [next[destination], next[index]];
     try { resolveNightOrder(counts, { nightOrder: next }); patch({ nightOrder: next }); setError(''); }
     catch (failure) { setError(failure instanceof Error ? failure.message : '请检查行动顺序'); }
+  };
+  const moveResolution = (step: DeathResolutionStep, delta: -1 | 1) => {
+    const index = resolutionOrder.indexOf(step);
+    const destination = index + delta;
+    if (destination < 0 || destination >= resolutionOrder.length) return;
+    const next = [...resolutionOrder];
+    [next[index], next[destination]] = [next[destination], next[index]];
+    patch({ deathResolutionOrder: next });
   };
   const relevantStages = fixedStages.filter(({ id }) => {
     if (id === 'identity-check') return rules.flow?.identityCheck === 'at-nightfall';
@@ -59,7 +68,7 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
         ]}
         onChange={identityCheck => patch({ identityCheck: identityCheck as NonNullable<HostingFlow['identityCheck']> })}
       />
-      <Text style={type.footnote}>“确认即行动”直接进入正常夜晚。法官先确认本步身份或阵营，再让玩家立即发动技能；闭眼并完成该步后，对应座位自动记入身份记录。</Text>
+      <Text style={type.footnote}>“确认即行动”直接进入正常夜晚。轮到某角色时，主持人先点选本步实际睁眼的座位；确认后对应角色组落到这些座位，再让玩家立即发动技能。</Text>
       <ChoiceRow
         label="放逐记录"
         value={rules.table?.exileRecord ?? 'detailed'}
@@ -70,6 +79,12 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
         onChange={exileRecord => patchTable({ exileRecord: exileRecord as NonNullable<NonNullable<Rules['table']>['exileRecord']> })}
       />
       <Text style={type.footnote}>快速记录只点最终被票出的人，不再逐人录票；白痴、遗言、出局技能、警徽和胜负仍照常处理。</Text>
+      {(rules.table?.exileRecord ?? 'detailed') !== 'quick' ? <SwitchRow
+        label="允许放逐时投给自己"
+        hint="默认关闭。关闭时逐人放逐投票不能把票投给本人；警长竞选和快速放逐结果不受此项影响。"
+        value={rules.table?.exileSelfVote === true}
+        onChange={exileSelfVote => patchTable({ exileSelfVote })}
+      /> : null}
       <SwitchRow
         label="保留已出局角色的夜间口播"
         hint="默认开启：角色出局后仍照常念睁眼、行动、闭眼台词，避免通过省略流程暴露身份；点继续即可，不录入目标。关闭后才跳过后续夜间环节。"
@@ -86,6 +101,30 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
       </View>)}
       <Button title="恢复默认行动顺序" variant="ghost" small onPress={() => { patch({ nightOrder: reconcileNightOrder(counts) }); setError(''); }} />
       {error ? <InlineError>{error}</InlineError> : null}
+    </Card>
+    <Card style={styles.group}>
+      <Text style={type.headline}>出局结算顺序</Text>
+      <Text style={type.footnote}>默认先处理遗言，再处理出局技能，最后处理警徽。线下流程不同可以用上下按钮调整，确认后按这个顺序逐项处理。</Text>
+      {resolutionOrder.map((step, index) => <View key={step} style={styles.orderRow}>
+        <Text style={styles.number}>{String(index + 1).padStart(2, '0')}</Text>
+        <Text style={[type.body, styles.flex]}>{step === 'last-words' ? '出局遗言' : step === 'death-skill' ? '出局技能' : '警徽处理'}</Text>
+        {([-1, 1] as const).map(delta => {
+          const disabled = delta === -1 ? index === 0 : index === resolutionOrder.length - 1;
+          const label = step === 'last-words' ? '遗言' : step === 'death-skill' ? '出局技能' : '警徽';
+          return <Pressable
+            key={delta}
+            accessibilityRole="button"
+            accessibilityLabel={`${delta === -1 ? '上移' : '下移'}${label}结算`}
+            accessibilityState={{ disabled }}
+            disabled={disabled}
+            onPress={() => moveResolution(step, delta)}
+            style={[styles.orderButton, disabled && styles.disabled]}
+          >
+            <Text style={type.headline}>{delta === -1 ? '↑' : '↓'}</Text>
+          </Pressable>;
+        })}
+      </View>)}
+      <Button title="恢复默认出局顺序" variant="ghost" small onPress={() => patch({ deathResolutionOrder: [...DEFAULT_DEATH_RESOLUTION_ORDER] })} />
     </Card>
     <Card style={styles.group}>
       <SwitchRow label="天亮时手动确认出局名单" hint="确认出局座位和原因后，再按正常流程处理技能、警徽和胜负。" value={rules.flow?.manualDawn === true} onChange={manualDawn => patch({ manualDawn })} />

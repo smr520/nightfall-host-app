@@ -5,6 +5,7 @@ import type { Game } from '../../game/types';
 export type Draft = VoteEntryDraft & {
   scope: string;
   selected: number | null;
+  identitySeats: number[];
   dance: number[];
   save: boolean;
   poison: number | null;
@@ -20,6 +21,7 @@ export type Draft = VoteEntryDraft & {
 export const emptyDraft = (scope: string, game: Game): Draft => ({
   scope,
   selected: null,
+  identitySeats: [],
   dance: [],
   save: false,
   poison: null,

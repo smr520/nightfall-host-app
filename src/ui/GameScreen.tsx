@@ -88,7 +88,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, h
   const voteRecorded = vote ? vote.voters.every(seat => vote.ballots[seat] !== undefined) : false;
 
   const doAction = (action: Action) => {
-    if (dispatch(action)) patch({ selected: null, dance: [], poison: null, save: false, ...(action.type === 'ballot' || action.type === 'ballots' ? { voter: null, batchVoters: [] } : {}) });
+    if (dispatch(action)) patch({ selected: null, identitySeats: [], dance: [], poison: null, save: false, ...(action.type === 'ballot' || action.type === 'ballots' ? { voter: null, batchVoters: [] } : {}) });
   };
   const responsive = useResponsive();
   const supportTaskCount = hostTasks(game.players.map(player => player.role)).length;
@@ -119,8 +119,10 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, h
           draft={draft}
           activeVoter={activeVoter}
           voteRecorded={voteRecorded}
+          canUndo={canUndo}
           doAction={doAction}
           onEndPk={() => { speechClock.select(null); patch({ pkSpeaking: false, selected: null, voter: null }); }}
+          onUndo={onUndo}
           onBack={onBack}
         />
       )}

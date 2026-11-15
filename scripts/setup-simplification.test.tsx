@@ -88,9 +88,9 @@ describe('lighter pregame setup', () => {
     expect(app.button('自定义主持流程')).toBeUndefined();
     app.press('下一步'); app.press('开始主持');
     const game = onStart.mock.calls[0][0];
-    expect(game.rules).toEqual(rules);
+    expect(game.rules).toEqual({ ...rules, flow: { ...rules.flow, identityCheck: 'during-night' } });
     expect(game.stage).toBe('seer');
-    expect(decodeSession(JSON.stringify({ current: game, undo: [], redo: [] })).session.current.rules).toEqual(rules);
+    expect(decodeSession(JSON.stringify({ current: game, undo: [], redo: [] })).session.current.rules).toEqual({ ...rules, flow: { ...rules.flow, identityCheck: 'during-night' } });
     app.unmount();
   });
 

@@ -1,12 +1,14 @@
 import { nightCallsFor } from './boards';
 import { validateLastWordsPolicy } from './last-words';
 import { ROLES, isRole } from './roles';
-import type { Counts, HostingFlow, NightCall, Rules } from './types';
+import type { Counts, DeathResolutionStep, HostingFlow, NightCall, Pending, Rules } from './types';
 
 const FIXED_FLOW_STAGES = ['identity-check', 'dawn', 'dawn-announcement', 'last-words', 'sheriff-signup', 'sheriff-vote', 'discussion', 'exile-vote', 'hunter', 'badge', 'shot', 'link', 'heir', 'ended'];
 const validCall = (value: unknown): value is NightCall => value === 'wolves' || isRole(value) && !!ROLES[value].night;
 const validScriptStage = (value: string) => FIXED_FLOW_STAGES.includes(value) || validCall(value);
 export const DAWN_CAUSES = ['knife', 'poison', 'shot', 'ruling', 'link', 'dance', 'check', 'dream', 'demon-hunt'] as const;
+export const DEFAULT_DEATH_RESOLUTION_ORDER: DeathResolutionStep[] = ['last-words', 'death-skill', 'badge'];
+const DEATH_RESOLUTION_STEPS = new Set<DeathResolutionStep>(DEFAULT_DEATH_RESOLUTION_ORDER);
 
 const sameSet = (left: NightCall[], right: NightCall[]) => left.length === right.length && new Set(left).size === left.length && left.every(item => right.includes(item));
 
@@ -15,9 +17,9 @@ export function shouldKeepDeadCalls(rules: Pick<Rules, 'flow'>): boolean {
   return rules.flow?.keepDeadCalls !== false;
 }
 
-/** New games use confirm-and-act during the normal night; the old stage is kept only for old saves. */
+/** New games use confirm-and-act unless the host explicitly chose after-deal. */
 export function rulesForNewGame(rules: Rules): Rules {
-  if (rules.flow?.identityCheck !== 'at-nightfall') return rules;
+  if (rules.flow?.identityCheck && rules.flow.identityCheck !== 'at-nightfall') return rules;
   return { ...rules, flow: { ...rules.flow, identityCheck: 'during-night' } };
 }
 
@@ -41,6 +43,19 @@ export function reconcileNightOrder(counts: Counts, current?: NightCall[]): Nigh
   return result;
 }
 
+export function deathResolutionOrder(flow?: HostingFlow): DeathResolutionStep[] {
+  return flow?.deathResolutionOrder ? [...flow.deathResolutionOrder] : [...DEFAULT_DEATH_RESOLUTION_ORDER];
+}
+
+export function pendingResolutionRank(kind: Pending['kind'], flow?: HostingFlow): number {
+  const step: DeathResolutionStep = kind === 'last-words'
+    ? 'last-words'
+    : kind === 'badge'
+      ? 'badge'
+      : 'death-skill';
+  return deathResolutionOrder(flow).indexOf(step);
+}
+
 export function validateFlow(value: unknown, counts?: Counts): value is HostingFlow {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const flow = value as Record<string, unknown>;
@@ -52,6 +67,12 @@ export function validateFlow(value: unknown, counts?: Counts): value is HostingF
     && flow.identityCheck !== 'at-nightfall') return false;
   if (flow.manualVictory !== undefined && typeof flow.manualVictory !== 'boolean') return false;
   if (!validateLastWordsPolicy(flow.lastWords)) return false;
+  if (flow.deathResolutionOrder !== undefined) {
+    const order = flow.deathResolutionOrder;
+    if (!Array.isArray(order) || order.length !== DEFAULT_DEATH_RESOLUTION_ORDER.length) return false;
+    if (new Set(order).size !== order.length || order.some(step => !DEATH_RESOLUTION_STEPS.has(step as DeathResolutionStep))) return false;
+    if (!DEFAULT_DEATH_RESOLUTION_ORDER.every(step => order.includes(step))) return false;
+  }
   if (flow.nightOrder !== undefined) {
     if (!Array.isArray(flow.nightOrder) || flow.nightOrder.some(call => !validCall(call)) || new Set(flow.nightOrder).size !== flow.nightOrder.length) return false;
     if (counts) {
@@ -67,5 +88,9 @@ export function validateFlow(value: unknown, counts?: Counts): value is HostingF
 
 export function flowForCounts(counts: Counts, flow?: HostingFlow): HostingFlow | undefined {
   if (!flow) return undefined;
-  return { ...flow, nightOrder: resolveNightOrder(counts, flow) };
+  return {
+    ...flow,
+    nightOrder: resolveNightOrder(counts, flow),
+    ...(flow.deathResolutionOrder ? { deathResolutionOrder: [...flow.deathResolutionOrder] } : {}),
+  };
 }

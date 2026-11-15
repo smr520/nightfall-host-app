@@ -1,7 +1,6 @@
-import { BOARD_LIBRARY, boardSeats, countsFromRoles, emptyCounts, nightCallsFor, type Board } from './boards';
-import { createGame, validateCounts } from './engine';
-import { rulesForNewGame, validateFlow } from './flow';
-import { drawJingchengTreasure, treasureReserveLog } from './jingcheng-draw';
+import { BOARD_LIBRARY, boardSeats, countsFromRoles, emptyCounts, type Board } from './boards';
+import { validateCounts } from './engine';
+import { DEFAULT_DEATH_RESOLUTION_ORDER, deathResolutionOrder, validateFlow } from './flow';
 import { isRole, type Role } from './roles';
 import { isValidSpeechSeconds, speechSecondsForRules, validateSpeechDurations } from './speech';
 import { validateTableRules } from './table-rules';
@@ -117,7 +116,6 @@ function customBoard(name: string, roles: Role[]): Board {
     playerCount: roles.length,
     roles: roleCounts,
     counts,
-    night: nightCallsFor(counts),
     note: '来自上次开局设置',
   };
 }
@@ -125,21 +123,6 @@ function customBoard(name: string, roles: Role[]): Board {
 /** 找到设置页要展示的板子；自定义阵容会重建成一个临时板子。 */
 export function boardForSetup(memory: SetupMemory): Board {
   return findBoard(memory.boardName, memory.roles, memory.boardId) ?? customBoard(memory.boardName, memory.roles);
-}
-
-/** 直接用记住的设置开局；牌池型板子会重新洗牌，其余板子保留上次的座位身份。 */
-export function gameFromSetup(memory: SetupMemory): Game {
-  const board = boardForSetup(memory);
-  const draw = board.deck ? drawJingchengTreasure() : null;
-  const roles = draw ? draw.roles : memory.roles;
-  const players = roles.map((role, index) => ({
-    name: memory.playerNames[index] || `${index + 1}号玩家`,
-    role,
-  }));
-  return createGame(memory.gameName, board.name, players, rulesForNewGame(cloneRules(memory.rules)), {
-    privateNotes: draw ? [treasureReserveLog(draw)] : [],
-    ...(draw ? { treasure: { reserve: [...draw.reserve], camp: draw.treasureCamp } } : {}),
-  });
 }
 
 const DEFAULT_PLAYER_NAME = /^\d+号玩家$/;
@@ -170,6 +153,7 @@ export function setupSummary(memory: Pick<SetupMemory, 'rules' | 'playerNames'>)
   if (memory.rules.flow?.nightOrder || memory.rules.flow?.scripts) parts.push('自定义流程');
   if (memory.rules.flow?.identityCheck === 'during-night') parts.push('夜间行动流程：确认即行动');
   else if (memory.rules.flow?.identityCheck === 'at-nightfall') parts.push('旧版逐座身份核对');
+  if (deathResolutionOrder(memory.rules.flow).some((step, index) => step !== DEFAULT_DEATH_RESOLUTION_ORDER[index])) parts.push('自定义出局结算顺序');
   if (memory.rules.table?.exileRecord === 'quick') parts.push('快速放逐记录');
   if (memory.rules.flow?.manualDawn) parts.push('天亮复核');
   if (memory.rules.flow?.manualVictory) parts.push('主持人判胜');

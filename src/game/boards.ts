@@ -22,8 +22,6 @@ export type Board = {
   roles: Partial<Record<Role, number>>;
   /** 完整角色计数，含 0 */
   counts: Counts;
-  /** 夜间行动顺序（含 wolves） */
-  night: (Role | 'wolves')[];
   note?: string;
   source?: string;
   /** 该板子尚未锁定的规则点 */
@@ -72,10 +70,10 @@ export function callTitle(call: Role | 'wolves'): string {
   return ROLES[call].night?.targetLabel ? `${ROLES[call].name}行动` : ROLES[call].name;
 }
 
-function make(input: Omit<Board, 'counts' | 'night' | 'playerCount'> & { playerCount?: number }): Board {
+function make(input: Omit<Board, 'counts' | 'playerCount'> & { playerCount?: number }): Board {
   const counts = fill(input.roles);
   const playerCount = input.playerCount ?? Object.values(counts).reduce((a, b) => a + b, 0);
-  return { ...input, counts, playerCount, night: nightCallsFor(counts) };
+  return { ...input, counts, playerCount };
 }
 
 const officialBase = (id: string, name: string, subtitle: string, roles: Partial<Record<Role, number>>, note: string, unresolved: string[] = [], catalog: BoardCatalog = leagueCatalog('reference')): Board =>

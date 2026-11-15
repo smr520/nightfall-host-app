@@ -1,7 +1,7 @@
 import { BOARD_LIBRARY, boardSeats, type Board } from '../src/game/boards';
 import { rulesForBoard } from '../src/game/board-rules';
 import { DEFAULT_RULES } from '../src/game/config';
-import { applyAction, createGame, nightDeaths } from '../src/game/engine';
+import { applyAction, callIdentitySeats, createGame, nightCallIdentityConfirmed, nightDeaths } from '../src/game/engine';
 import { drawJingchengTreasure, type JingchengDraw } from '../src/game/jingcheng-draw';
 import { isWolf, type Role } from '../src/game/roles';
 import { decodeSession, isValidGame } from '../src/game/save-schema';
@@ -163,25 +163,33 @@ function chooseNightAction(game: Game, random: SeededRandom, target: number | nu
 }
 
 function advanceNight(game: Game, stage: NightCall, random: SeededRandom, label: string): Game {
-  const fallbackTarget = random.pick(alive(game)) ?? null;
-  const first = chooseNightAction(game, random, fallbackTarget);
+  let prepared = game;
+  if (game.rules.flow?.identityCheck === 'during-night' && !nightCallIdentityConfirmed(game, stage)) {
+    prepared = act(game, {
+      type: 'assign-night-identity',
+      callId: stage,
+      seats: callIdentitySeats(game, stage),
+    }, `${label}:identity`);
+  }
+  const fallbackTarget = random.pick(alive(prepared)) ?? null;
+  const first = chooseNightAction(prepared, random, fallbackTarget);
   if (!first) throw new Error(`${label}: no action for night stage ${stage}`);
   try {
-    const next = act(game, first, label);
+    const next = act(prepared, first, label);
     matrixCoverage.specialNightCalls.add(stage);
     return next;
   } catch {
-    const secondTarget = firstDifferent(alive(game), fallbackTarget);
-    const retry = chooseNightAction(game, random, secondTarget);
+    const secondTarget = firstDifferent(alive(prepared), fallbackTarget);
+    const retry = chooseNightAction(prepared, random, secondTarget);
     if (!retry || JSON.stringify(retry) === JSON.stringify(first)) {
-      return finishNightDeadlock(game, stage, label);
+      return finishNightDeadlock(prepared, stage, label);
     }
     try {
-      const next = act(game, retry, label);
+      const next = act(prepared, retry, label);
       matrixCoverage.specialNightCalls.add(stage);
       return next;
     } catch {
-      return finishNightDeadlock(game, stage, label);
+      return finishNightDeadlock(prepared, stage, label);
     }
   }
 }
@@ -271,19 +279,36 @@ function simulate(scenario: Scenario): Game {
           }
           if (voters.length >= 2) {
             voters.forEach((voter, index) => {
+              const preferred = tied[index % tied.length];
               game = act(game, {
                 type: 'ballot',
                 voter,
-                target: tied[index % tied.length],
+                target: preferred === voter ? tied.find(seat => seat !== voter) ?? null : preferred,
               }, `${label} op=${operations}`);
             });
           } else {
             const target = random.pick(vote.candidates) ?? null;
-            game = act(game, { type: 'ballots', voters: vote.voters, target }, `${label} op=${operations}`);
+            const batchVoters = target === null ? vote.voters : vote.voters.filter(voter => voter !== target);
+            if (batchVoters.length) game = act(game, { type: 'ballots', voters: batchVoters, target }, `${label} op=${operations}`);
+            for (const voter of vote.voters.filter(seat => !batchVoters.includes(seat))) {
+              game = act(game, {
+                type: 'ballot',
+                voter,
+                target: vote.candidates.find(seat => seat !== voter) ?? null,
+              }, `${label} op=${operations}`);
+            }
           }
         } else {
           const target = random.pick(vote.candidates) ?? null;
-          game = act(game, { type: 'ballots', voters: vote.voters, target }, `${label} op=${operations}`);
+          const batchVoters = target === null ? vote.voters : vote.voters.filter(voter => voter !== target);
+          if (batchVoters.length) game = act(game, { type: 'ballots', voters: batchVoters, target }, `${label} op=${operations}`);
+          for (const voter of vote.voters.filter(seat => !batchVoters.includes(seat))) {
+            game = act(game, {
+              type: 'ballot',
+              voter,
+              target: vote.candidates.find(seat => seat !== voter) ?? null,
+            }, `${label} op=${operations}`);
+          }
         }
         game = act(game, { type: 'count' }, `${label} op=${operations}`);
         break;

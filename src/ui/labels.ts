@@ -45,7 +45,7 @@ export function stageInfo(stage: Stage, game?: Game): StageInfo {
         : STAGES['exile-vote'].script),
       help: quick
         ? '直接选择被票出的座位或本轮无人出局；不计算票型、平票和 PK，但继续处理遗言、出局技能、警徽与胜负。'
-        : STAGES['exile-vote'].help,
+        : `${STAGES['exile-vote'].help}本桌${tableRules(game.rules).exileSelfVote ? '允许' : '不允许'}投给自己。`,
     };
   }
   if (game && stage === 'last-words') {

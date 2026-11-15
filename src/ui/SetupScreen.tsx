@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, Keyboard, ScrollView, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { colors, spacing, type } from '../theme';
-import { BOARD_LIBRARY, countsFromRoles, nightCallsFor, type Board } from '../game/boards';
+import { BOARD_LIBRARY, countsFromRoles, type Board } from '../game/boards';
 import { treasureReserveLog } from '../game/jingcheng-draw';
 import { createGame, validateCounts } from '../game/engine';
 import { openingRulesScript, ruleSummary } from '../game/config';
@@ -182,7 +182,7 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
     const sourceBoardId = sameLineup ? board.sourceBoardId ?? (board.tag !== 'custom' ? board.id : undefined) : undefined;
     const next: Board = {
       id: 'custom', name: builderName.trim() || '自定义板子', subtitle: `${count} 人 · 自定义阵容`, tag: 'custom',
-      playerCount: count, roles: builderRoles, counts, night: nightCallsFor(counts), note: '由你在开局前自定义的阵容。',
+      playerCount: count, roles: builderRoles, counts, note: '由你在开局前自定义的阵容。',
       ...(keepBoardRules ? { rules: board.rules } : {}),
       ...(sourceBoardId ? { sourceBoardId, ...(board.catalog ? { catalog: board.catalog } : {}) } : {}),
     };
@@ -220,16 +220,20 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
       const privateNotes = deal && deal.boardId === board.id ? [treasureReserveLog({ reserve: deal.reserve, treasureCamp: deal.camp })] : [];
       const treasure = deal && deal.boardId === board.id ? { reserve: deal.reserve, camp: deal.camp } : undefined;
       const rulesToUse = rulesForNewGame(normalizedRules());
+      const rolesToUse = players.map(player => player.role);
+      const seatRoles = rulesToUse.flow?.identityCheck === 'during-night'
+        ? shuffledRoles(rolesToUse)
+        : rolesToUse;
       const setup = makeSetupMemory({
         mode,
         boardId: board.sourceBoardId ?? (board.tag !== 'custom' ? board.id : undefined),
         boardName: board.name,
-        roles: players.map(player => player.role),
+        roles: rolesToUse,
         rules: rulesToUse,
         playerNames: players.map(player => player.name.trim()),
         gameName: name.trim() || '周末局',
       });
-      onStart(createGame(name, board.name, players.map((p, index) => ({ name: p.name || `${index + 1}号玩家`, role: p.role })), rulesToUse, { privateNotes, ...(treasure ? { treasure } : {}) }), setup);
+      onStart(createGame(name, board.name, players.map((p, index) => ({ name: p.name || `${index + 1}号玩家`, role: seatRoles[index] })), rulesToUse, { privateNotes, ...(treasure ? { treasure } : {}) }), setup);
     } catch (e) {
       setError(e instanceof Error ? e.message : '请检查开局配置');
     }
@@ -313,8 +317,7 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
             <View style={styles.memoryHead}><Icon name="history" size={17} color={colors.textSecondary} /><Text style={styles.memoryTitle}>已带入上次开局设置</Text></View>
             <Button title="从头设置" variant="ghost" small onPress={resetToDefaults} />
           </View>
-          <Text style={type.footnote}>{board.deck ? '板子、桌规和已填姓名已保留；牌池型板子会重新洗牌后再入座。' : '板子、桌规、身份顺序和已填姓名都已保留。'}可以直接开始，也可以继续修改。</Text>
-          <Button title="直接开始" onPress={start} />
+          <Text style={type.footnote}>本次仍会进入座位确认。板子、桌规和姓名已预填，但不会沿用上一局的座位身份；身份将在夜间按行动逐项确认。</Text>
         </View> : null}
 
         {editingProfile ? <View style={styles.profileIdentity} onLayout={event => { profileNameY.current = event.nativeEvent.layout.y; }}>
@@ -459,4 +462,13 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
 
 export function countsPreview(roles: Partial<Record<Role, number>>): Counts {
   return countsFromRoles(roles);
+}
+
+function shuffledRoles(roles: Role[]): Role[] {
+  const next = [...roles];
+  for (let index = next.length - 1; index > 0; index--) {
+    const destination = Math.floor(Math.random() * (index + 1));
+    [next[index], next[destination]] = [next[destination], next[index]];
+  }
+  return next;
 }
