@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+android/
+ios/
+*.jks
+*.keystore
+.env*
+coverage/
+dist-test*/
+dist-final/
+build-output/

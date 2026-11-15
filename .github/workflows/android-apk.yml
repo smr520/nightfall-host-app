@@ -1,0 +1,140 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate tag version
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          test "$GITHUB_REF_NAME" = "v$VERSION"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Android SDK packages
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Full validation
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test:engine
+          npm run test:regressions
+          npm run test:ui
+          npx expo-doctor
+
+      - name: Prepare release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" ]]; then
+            if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+              echo "A version tag requires the Android signing secrets." >&2
+              exit 1
+            fi
+            echo "Signing secrets are absent; manual builds use the debug key."
+            exit 0
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nightfall-release.jks"
+          {
+            echo "NIGHTFALL_RELEASE_STORE_FILE=$RUNNER_TEMP/nightfall-release.jks"
+            echo "NIGHTFALL_RELEASE_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "NIGHTFALL_RELEASE_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "NIGHTFALL_RELEASE_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Name files
+        id: package
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          FILE="nightfall-host-${VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$FILE"
+          sha256sum "$FILE" > "$FILE.sha256"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: nightfall-host-${{ steps.package.outputs.version }}-apk
+          path: |
+            ${{ steps.package.outputs.file }}
+            ${{ steps.package.outputs.file }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish versioned release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package.outputs.version }}
+          FILE: ${{ steps.package.outputs.file }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          夜幕 Android 正式版，可直接安装测试。
+
+          包含主持端与玩家端本地数据分离、31 套板子、50 种角色资料、玩家选本与座位出局编辑、手机和平板自适应界面。复杂特殊技能仍按应用内“主持人处理”说明人工裁定。
+
+          此 APK 使用固定发布签名，后续正式版可覆盖安装。应用不联网，卸载会删除本机数据，请先导出备份。
+          EOF
+          gh release create "$GITHUB_REF_NAME" \
+            "$FILE" \
+            "$FILE.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "夜幕 $VERSION" \
+            --notes-file release-notes.md \
+            --latest
