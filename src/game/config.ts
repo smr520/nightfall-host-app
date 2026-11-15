@@ -25,9 +25,9 @@ type FixedStage = 'identity-check' | 'dawn' | 'dawn-announcement' | 'sheriff-sig
 
 export const STAGES: Record<FixedStage, StageInfo> = {
   'identity-check': {
-    title: '开局身份确认', short: '确认',
+    title: '旧版逐座身份核对', short: '旧版',
     script: '天黑了，请所有玩家闭眼。请按座位顺序逐一确认身份牌，确认无误后继续。',
-    help: '按主持人选定的顺序逐人核对；公开口播只读座位，身份只显示在主持端私密提示中。全部确认后才进入第一夜。',
+    help: '这是为旧存档保留的独立核对阶段。新局请使用“夜间行动流程：确认即行动”，身份或阵营会在各角色正常行动时逐步确认。',
   },
   dawn: {
     title: '夜晚结算', short: '结算',
@@ -109,6 +109,11 @@ function lastWordsPolicySummary(rules: Rules): string | null {
 export function ruleSummary(r: Rules, roles?: Role[]): string[] {
   const has = (role: Role) => roles === undefined || roles.includes(role);
   const table = tableRules(r);
+  const identityFlow = r.flow?.identityCheck === 'during-night'
+    ? '确认即行动（按序唤醒，确认身份/阵营后立即执行技能）'
+    : r.flow?.identityCheck === 'at-nightfall'
+      ? '旧版逐座身份核对'
+      : '发牌后自行看牌';
   const medicine = has('witch') ? [`女巫${r.selfSave === 'never' ? '不可自救' : r.selfSave === 'first' ? '仅首夜可自救' : '可自救'} · ${r.doubleMedicine ? '允许同夜双药' : '禁止同夜双药'}`] : [];
   const guard = has('guard') ? [`${has('witch') ? `守救同人${r.guardSave === 'die' ? '死亡' : '存活'} · ` : ''}守卫${table.guardRepeat ? '可以' : '不能'}连续守同人`] : [];
   const deathRules = [
@@ -119,7 +124,7 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
   return [
     r.sheriff ? `上警 · 警长 ${r.sheriffWeight} 票` : '不上警',
     r.win === 'edge' ? '屠边：狼全灭好人胜；民或神全灭狼人胜' : '屠城：狼全灭好人胜；好人全灭狼人胜',
-    `身份确认：${r.flow?.identityCheck === 'during-night' || r.flow?.identityCheck === 'at-nightfall' ? '夜间行动时逐项确认座位' : '发牌后玩家自行看牌'}`,
+    `夜间行动流程：${identityFlow}`,
     ...(table.firstNightKnife ? [] : ['首夜狼人只互相确认，不发动击杀']),
     ...medicine,
     ...guard,

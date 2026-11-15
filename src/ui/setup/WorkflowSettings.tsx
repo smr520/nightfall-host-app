@@ -11,7 +11,7 @@ import { Button, Card, InlineError, SwitchRow } from '../kit';
 import { ChoiceRow } from './Controls';
 
 const fixedStages: { id: Stage; label: string }[] = [
-  { id: 'identity-check', label: '身份确认' }, { id: 'dawn', label: '天亮核对' }, { id: 'dawn-announcement', label: '公布结果' }, { id: 'sheriff-signup', label: '警长竞选' },
+  { id: 'identity-check', label: '旧版逐座确认' }, { id: 'dawn', label: '天亮核对' }, { id: 'dawn-announcement', label: '公布结果' }, { id: 'sheriff-signup', label: '警长竞选' },
   { id: 'sheriff-vote', label: '警长投票' }, { id: 'discussion', label: '白天发言' }, { id: 'exile-vote', label: '放逐投票' },
   { id: 'last-words', label: '出局遗言' }, { id: 'hunter', label: '猎人技能' }, { id: 'shot', label: '出局技能' },
   { id: 'link', label: '跟随出局' }, { id: 'badge', label: '警徽处理' },
@@ -48,18 +48,18 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
   const activeScriptStage = scriptStages.some(item => item.id === scriptStage) ? scriptStage : 'discussion';
   return <View style={styles.root}>
     <Card style={styles.group}>
-      <Text style={type.headline}>开局与白天节奏</Text>
-      <Text style={type.footnote}>这三项按本桌习惯设置，会随方案保存。不同桌不必套同一套现场节奏。</Text>
+      <Text style={type.headline}>夜间流程与白天节奏</Text>
+      <Text style={type.footnote}>按本桌习惯设置，会随方案保存。不同桌不必套同一套现场节奏。</Text>
       <ChoiceRow
-        label="身份确认"
+        label="夜间行动流程"
         value={rules.flow?.identityCheck ?? 'after-deal'}
         options={[
-          { label: '发牌后看牌', value: 'after-deal' },
-          { label: '夜间行动时确认', value: 'during-night' },
+          { label: '发牌后自行看牌', value: 'after-deal' },
+          { label: '确认即行动', value: 'during-night' },
         ]}
         onChange={identityCheck => patch({ identityCheck: identityCheck as NonNullable<HostingFlow['identityCheck']> })}
       />
-      <Text style={type.footnote}>“夜间行动时确认”直接进入正常夜晚。轮到某个身份行动时，主持台显示对应座位号，完成该步后自动记入身份记录。</Text>
+      <Text style={type.footnote}>“确认即行动”直接进入正常夜晚。法官先确认本步身份或阵营，再让玩家立即发动技能；闭眼并完成该步后，对应座位自动记入身份记录。</Text>
       <ChoiceRow
         label="放逐记录"
         value={rules.table?.exileRecord ?? 'detailed'}

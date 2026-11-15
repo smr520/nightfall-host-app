@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { DEFAULT_RULES, openingRulesScript, ruleSummary } from '../src/game/config';
 import { applyAction, callActorStatus, callIdentitySeats, callIsActive, createGame } from '../src/game/engine';
+import { hostNarration } from '../src/game/narration';
 import { gameInvariantIssues } from '../src/game/save-invariants';
 import { normalizePreferences } from '../src/game/preferences';
 import { decodeSession, isValidGame } from '../src/game/save-schema';
@@ -88,10 +89,10 @@ describe('table defaults and validation', () => {
     const app = mount(<SetupScreen mode="standard" initialRules={DEFAULT_RULES} onBack={jest.fn()} onStart={onStart} />);
 
     app.press('下一步');
-    expect(app.button('身份确认 发牌后看牌')?.props.accessibilityState.selected).toBe(true);
+    expect(app.button('夜间行动流程 发牌后自行看牌')?.props.accessibilityState.selected).toBe(true);
     expect(app.button('放逐记录 逐人计票')?.props.accessibilityState.selected).toBe(true);
     expect(app.button('出局角色夜间口播 默认保留')?.props.accessibilityState.selected).toBe(true);
-    app.press('身份确认 夜间行动时确认');
+    app.press('夜间行动流程 确认即行动');
     app.press('放逐记录 快速记录结果');
     app.press('出局角色夜间口播 跳过');
     app.press('展开更多桌规');
@@ -119,8 +120,8 @@ describe('table defaults and validation', () => {
     );
 
     app.press('下一步');
-    expect(app.button('身份确认 夜间行动时确认')?.props.accessibilityState.selected).toBe(true);
-    expect(app.button('身份确认 天黑逐人确认')).toBeUndefined();
+    expect(app.button('夜间行动流程 确认即行动')?.props.accessibilityState.selected).toBe(true);
+    expect(app.button('夜间行动流程 天黑逐人确认')).toBeUndefined();
   });
 
   it('omits exile PK text and timing when fast recording is selected', () => {
@@ -262,9 +263,61 @@ describe('progressive identity confirmation during night actions', () => {
       />,
     );
 
-    expect(app.text()).toContain('本步身份');
+    expect(app.text()).toContain('本步身份/阵营');
     expect(app.text()).toContain('1号、2号');
-    expect(app.text()).toContain('完成这一步后自动记入身份记录');
+    expect(app.renderer.root.findByProps({ accessibilityLabel: '身份记录 0 / 4 个夜间行动座位' })).toBeDefined();
+    expect(app.text()).toContain('先核对本步身份或阵营，确认后立即完成本步技能');
+    expect(app.text()).toContain('完成本步后自动记入身份记录');
+  });
+
+  it('puts the full wolf team in the private confirm-and-act prompt', () => {
+    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    game.stage = 'wolves';
+
+    const narration = hostNarration(game, '');
+    expect(narration.privateNote).toContain('本步身份/阵营：1 号、2 号（狼人阵营）');
+    expect(narration.privateNote).toContain('先确认身份/阵营，再立即执行本步技能');
+    expect(narration.spoken).not.toContain('1 号、2 号');
+  });
+
+  it('includes an independent late-knife actor in the wolf identity step', () => {
+    const lateKnifeRoles: Role[] = ['wolf', 'wolf', 'villager', 'villager', 'seer', 'gargoyle'];
+    const game = createGame(
+      '继承刀权',
+      '六人测试局',
+      lateKnifeRoles.map((role, index) => ({ name: `${index + 1}号玩家`, role })),
+      { ...DEFAULT_RULES, sheriff: false, flow: { identityCheck: 'during-night' } },
+    );
+    game.players[0] = { ...game.players[0], alive: false, death: { day: 1, cause: 'exile' } };
+    game.players[1] = { ...game.players[1], alive: false, death: { day: 1, cause: 'exile' } };
+    game.stage = 'wolves';
+
+    expect(callIdentitySeats(game, 'wolves')).toEqual([1, 2, 6]);
+    expect(hostNarration(game, '').privateNote).toContain('本步行动座位：6 号');
+  });
+
+  it('distinguishes a feared living actor from an eliminated actor during the night flow', () => {
+    const game = gameWith({ flow: { identityCheck: 'during-night' } });
+    game.stage = 'guard';
+    const guard = game.players.find(player => player.role === 'guard')!;
+    game.night.targets.nightmare = guard.seat;
+    const app = mount(
+      <GameScreen
+        game={game}
+        canUndo={false}
+        canRedo={false}
+        error=""
+        selectionRevision={0}
+        onBack={jest.fn()}
+        onUndo={jest.fn()}
+        onRedo={jest.fn()}
+        onReset={jest.fn()}
+        dispatch={jest.fn(() => true)}
+      />,
+    );
+
+    expect(app.text()).toContain('角色仍存活，但本夜被恐惧，不能行动；本步仍保留身份核对。');
+    expect(app.text()).not.toContain('角色已出局，按赛前设置保留空唤醒');
   });
 
   it('keeps a dead role identity visible on its retained empty wake-up', () => {
@@ -286,8 +339,41 @@ describe('progressive identity confirmation during night actions', () => {
       />,
     );
 
-    expect(app.text()).toContain('本步身份座位：6 号（守卫）');
+    expect(app.text()).toContain('本步身份/阵营：6 号（守卫）');
     expect(app.text()).toContain('本角色已出局');
+  });
+
+  it('submits a three-seat dancer pool instead of a generic night call', () => {
+    const dancerRoles: Role[] = ['wolf', 'wolf', 'villager', 'villager', 'seer', 'dancer'];
+    const game = createGame(
+      '舞池主线',
+      '六人舞池',
+      dancerRoles.map((role, index) => ({ name: `${index + 1}号玩家`, role })),
+      { ...DEFAULT_RULES, sheriff: false },
+    );
+    game.stage = 'dancer';
+    const dispatch = jest.fn(() => true);
+    const app = mount(
+      <GameScreen
+        game={game}
+        canUndo={false}
+        canRedo={false}
+        error=""
+        selectionRevision={0}
+        onBack={jest.fn()}
+        onUndo={jest.fn()}
+        onRedo={jest.fn()}
+        onReset={jest.fn()}
+        dispatch={dispatch}
+      />,
+    );
+
+    app.press('1号 存活');
+    app.press('2号 存活');
+    app.press('3号 存活');
+    app.press('确认舞池：1 号、2 号、3 号');
+    expect(dispatch).toHaveBeenCalledWith({ type: 'dance', seats: [1, 2, 3] });
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'call', callId: 'dancer', target: null });
   });
 });
 

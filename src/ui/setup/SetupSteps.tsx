@@ -93,20 +93,20 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
       <Text accessibilityRole="header" style={type.title}>先定好本桌规则</Text>
       <Text style={type.footnote}>按今晚实际玩法调整。这里是本桌约定，预设不代表所有线下店和赛事的统一规则。开局后按已确认设置主持。</Text>
       <View style={styles.group}>
-        <Text style={type.caption}>开局节奏与放逐记录</Text>
+        <Text style={type.caption}>夜间行动与放逐记录</Text>
         <ChoiceRow
-          label="身份确认"
+          label="夜间行动流程"
           value={rules.flow?.identityCheck ?? 'after-deal'}
           options={[
-            { label: '发牌后看牌', value: 'after-deal' },
-            { label: '夜间行动时确认', value: 'during-night' },
+            { label: '发牌后自行看牌', value: 'after-deal' },
+            { label: '确认即行动', value: 'during-night' },
           ]}
           onChange={identityCheck => onSetRules({
             ...rules,
             flow: { ...rules.flow, identityCheck: identityCheck as NonNullable<Rules['flow']>['identityCheck'] },
           })}
         />
-        <Text style={type.footnote}>选“夜间行动时确认”后不会增加开局核对步骤。轮到狼人、预言家等角色睁眼时，主持台直接写出对应座位号；完成该步后自动记入身份记录。</Text>
+        <Text style={type.footnote}>选“确认即行动”后不会增加开局核对步骤。法官按夜间顺序依次唤醒玩家：主持台先写出本步身份或阵营，确认后立即发动技能，用完闭眼，再叫下一个角色。</Text>
         <Divider />
         <ChoiceRow
           label="放逐记录"
@@ -192,7 +192,7 @@ export function RulesStep({ editingProfile, board, rules, supportedRules, table,
         </View>
         <View style={styles.group}>
           <View style={styles.rowBetween}><Text style={type.headline}>主持流程</Text><Chip>{rules.flow ? '我的设置' : '板子默认'}</Chip></View>
-          <Text style={type.footnote}>夜间行动顺序 · 自定义主持词 · 每人 {rules.speechSeconds} 秒{supportedRules.flow?.identityCheck === 'during-night' || supportedRules.flow?.identityCheck === 'at-nightfall' ? ' · 夜间行动时逐步确认身份' : ' · 发牌后自行看牌'}{supportedRules.flow?.manualDawn ? ' · 天亮手动复核' : ''}{supportedRules.flow?.manualVictory ? ' · 主持人判定结束' : ''}</Text>
+          <Text style={type.footnote}>夜间行动顺序 · 自定义主持词 · 每人 {rules.speechSeconds} 秒{supportedRules.flow?.identityCheck === 'during-night' || supportedRules.flow?.identityCheck === 'at-nightfall' ? ' · 夜间行动流程：确认即行动' : ' · 发牌后自行看牌'}{supportedRules.flow?.manualDawn ? ' · 天亮手动复核' : ''}{supportedRules.flow?.manualVictory ? ' · 主持人判定结束' : ''}</Text>
           <Button title="自定义主持流程" variant="secondary" onPress={onOpenFlow} />
         </View>
         <View style={styles.group}>
@@ -243,7 +243,7 @@ export function RosterStep({ total, wolfCount, goodCount, thirdCount, board, dea
         {thirdCount ? <Chip>第三方 {thirdCount}</Chip> : null}
         <Chip>{board.name}</Chip>
       </View>
-      <Text style={type.footnote}>姓名可以不填。点击身份可与另一座位互换，板子的角色和人数保持一致。身份默认对玩家隐藏，主持台可临时查看。{supportedRules.flow?.identityCheck === 'during-night' || supportedRules.flow?.identityCheck === 'at-nightfall' ? '开始后直接进入第一夜，轮到哪个身份行动，就在那一步显示并记录对应座位号。' : '开始主持后直接进入第一夜。'}</Text>
+      <Text style={type.footnote}>姓名可以不填。点击身份可与另一座位互换，板子的角色和人数保持一致。身份默认对玩家隐藏，主持台可临时查看。{supportedRules.flow?.identityCheck === 'during-night' || supportedRules.flow?.identityCheck === 'at-nightfall' ? '开始后直接进入第一夜。按夜间行动流程依次唤醒：先显示本步身份或阵营，确认后立即行动，完成后再记录对应座位。' : '开始主持后直接进入第一夜。'}</Text>
       <Button title="随机分配身份" variant="secondary" onPress={onShuffle} />
       {deal && deal.boardId === board.id ? <View style={[styles.group, styles.hostNotice]}>
         <Text accessibilityRole="header" style={type.headline}>底牌 · 仅主持人可见</Text>

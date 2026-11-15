@@ -49,6 +49,22 @@ describe('remembered pregame setup', () => {
     expect(game.rules.table?.notes).toBe('上次约定');
   });
 
+  it('updates an old setup to confirm-and-act without opening a separate identity stage', () => {
+    const setup = memory({
+      rules: {
+        ...DEFAULT_RULES,
+        sheriff: false,
+        flow: { identityCheck: 'at-nightfall' },
+      },
+    });
+    const game = gameFromSetup(setup);
+
+    expect(game.rules.flow?.identityCheck).toBe('during-night');
+    expect(game.stage).toBe(game.nightCalls[0]);
+    expect(game.stage).not.toBe('identity-check');
+    expect(game.identityConfirmed).toEqual([]);
+  });
+
   it('reconstructs a custom lineup that is not in the board library', () => {
     const roles: Role[] = ['wolf', 'wolf', 'wolf', 'villager', 'villager', 'villager', 'villager', 'seer', 'witch', 'hunter', 'guard', 'idiot'];
     const setup = memory({ boardId: undefined, boardName: '我的桌', roles, playerNames: roles.map(() => '') });

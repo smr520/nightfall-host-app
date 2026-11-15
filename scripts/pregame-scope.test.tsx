@@ -134,7 +134,11 @@ describe('pregame lineup scope', () => {
     expect(ruleSummary(quickRules, hunterOnly).join('\n')).toContain('猎人出局可开枪');
     expect(ruleSummary(quickRules, hunterOnly).join('\n')).not.toMatch(/女巫|被毒|白痴/);
     expect(ruleSummary(DEFAULT_RULES)).toHaveLength(11);
-    expect(ruleSummary(DEFAULT_RULES).join('\n')).toContain('身份确认：发牌后玩家自行看牌');
+    expect(ruleSummary(DEFAULT_RULES).join('\n')).toContain('夜间行动流程：发牌后自行看牌');
+    expect(ruleSummary({
+      ...DEFAULT_RULES,
+      flow: { identityCheck: 'during-night' },
+    }).join('\n')).toContain('夜间行动流程：确认即行动');
     expect(ruleSummary(DEFAULT_RULES).join('\n')).toContain('放逐记录：逐人录票并自动处理平票');
     expect(ruleSummary(DEFAULT_RULES).join('\n')).toContain('守救同人死亡');
   });

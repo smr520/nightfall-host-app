@@ -55,6 +55,7 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
       doAction({ type: 'witch', save: actorCanAct && draft.save, poison: actorCanAct ? draft.poison : null });
       return;
     }
+    if (stage === 'dancer') { doAction({ type: 'dance', seats: draft.dance }); return; }
     if (night) { doAction({ type: 'call', callId: stage, target: actorCanAct ? draft.selected : null }); return; }
     if (stage === 'dawn') { if (!dawnDraftNeedsConfirmation(game, draft.dawn)) doAction({ type: 'dawn' }); return; }
     if (stage === 'dawn-announcement') { doAction({ type: 'announce-dawn' }); return; }
@@ -77,7 +78,6 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
     }
     if (stage === 'discussion') { doAction({ type: 'start-exile' }); return; }
     if (stage === 'last-words') { doAction({ type: 'last-words', speak: true }); return; }
-    if (stage === 'dancer') { doAction({ type: 'dance', seats: draft.dance }); return; }
     if (stage === 'heir') { doAction({ type: 'heir', target: draft.selected }); return; }
     if (stage === 'hunter' || stage === 'shot' || stage === 'badge') { doAction({ type: stage, target: draft.selected } as Action); return; }
     if (stage === 'link') doAction({ type: 'link', target: pending?.target ?? null });

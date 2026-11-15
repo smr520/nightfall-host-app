@@ -89,7 +89,8 @@ export type HostingFlow = {
   keepDeadCalls?: boolean;
   /**
    * after-deal: players look at their cards after dealing.
-   * during-night: seat numbers are revealed in context as each role acts.
+   * during-night: user-facing "夜间行动流程 / 确认即行动"; seats are revealed
+   * as each role wakes, identity or camp is confirmed, then the action is applied.
    * at-nightfall is retained only for reading 1.0.1 sessions that are already in the old
    * pre-night seat-confirmation stage; new games use during-night.
    */

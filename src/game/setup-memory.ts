@@ -1,6 +1,6 @@
 import { BOARD_LIBRARY, boardSeats, countsFromRoles, emptyCounts, nightCallsFor, type Board } from './boards';
 import { createGame, validateCounts } from './engine';
-import { validateFlow } from './flow';
+import { rulesForNewGame, validateFlow } from './flow';
 import { drawJingchengTreasure, treasureReserveLog } from './jingcheng-draw';
 import { isRole, type Role } from './roles';
 import { isValidSpeechSeconds, speechSecondsForRules, validateSpeechDurations } from './speech';
@@ -136,7 +136,7 @@ export function gameFromSetup(memory: SetupMemory): Game {
     name: memory.playerNames[index] || `${index + 1}号玩家`,
     role,
   }));
-  return createGame(memory.gameName, board.name, players, cloneRules(memory.rules), {
+  return createGame(memory.gameName, board.name, players, rulesForNewGame(cloneRules(memory.rules)), {
     privateNotes: draw ? [treasureReserveLog(draw)] : [],
     ...(draw ? { treasure: { reserve: [...draw.reserve], camp: draw.treasureCamp } } : {}),
   });
@@ -168,7 +168,8 @@ export function setupSummary(memory: Pick<SetupMemory, 'rules' | 'playerNames'>)
     `发言 ${speechSecondsForRules(memory.rules, 'discussion')} 秒`,
   ];
   if (memory.rules.flow?.nightOrder || memory.rules.flow?.scripts) parts.push('自定义流程');
-  if (memory.rules.flow?.identityCheck === 'during-night' || memory.rules.flow?.identityCheck === 'at-nightfall') parts.push('夜间行动时确认身份');
+  if (memory.rules.flow?.identityCheck === 'during-night') parts.push('夜间行动流程：确认即行动');
+  else if (memory.rules.flow?.identityCheck === 'at-nightfall') parts.push('旧版逐座身份核对');
   if (memory.rules.table?.exileRecord === 'quick') parts.push('快速放逐记录');
   if (memory.rules.flow?.manualDawn) parts.push('天亮复核');
   if (memory.rules.flow?.manualVictory) parts.push('主持人判胜');

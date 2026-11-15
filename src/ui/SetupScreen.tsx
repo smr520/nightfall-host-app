@@ -7,7 +7,7 @@ import { createGame, validateCounts } from '../game/engine';
 import { openingRulesScript, ruleSummary } from '../game/config';
 import { tableRules } from '../game/table-rules';
 import { isIdentityCard } from '../game/role-catalog';
-import { reconcileNightOrder } from '../game/flow';
+import { reconcileNightOrder, rulesForNewGame } from '../game/flow';
 import { ROLE_REFERENCE } from '../game/role-reference';
 import { ROLES, ROLE_IDS, isWolf } from '../game/roles';
 import type { Counts, Game, Role, Rules } from '../game/types';
@@ -27,11 +27,6 @@ import { BoardLibrarySheet, CustomBoardSheet, RoleSwapSheet } from './setup/Setu
 import { BoardStep, RosterStep, RulesStep } from './setup/SetupSteps';
 import { styles } from './setup/styles';
 import type { Step, TreasureDeal } from './setup/types';
-
-function rulesForNewGame(rules: Rules): Rules {
-  if (rules.flow?.identityCheck !== 'at-nightfall') return rules;
-  return { ...rules, flow: { ...rules.flow, identityCheck: 'during-night' } };
-}
 
 export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, onBack, onStart, onSaveProfile, onOpenReference }: {
   mode: HostingMode;

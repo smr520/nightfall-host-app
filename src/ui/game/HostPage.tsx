@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
-import { callActorStatus, callIdentitySeats, getNightAnnouncement } from '../../game/engine';
+import { callActorStatus, callIdentitySeats, getNightAnnouncement, nightIdentitySeats } from '../../game/engine';
 import { isNightStage } from '../../game/host-ui';
 import { hostingProgress } from '../../game/hosting-reference';
 import { hostNarration, latestPublicOutcome } from '../../game/narration';
@@ -58,9 +58,21 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   const vote = game.vote;
   const pending = game.pending[0];
   const identityConfirmed = game.identityConfirmed ?? [];
-  const progressiveIdentity = night && stage !== 'identity-check' && game.rules.flow?.identityCheck === 'during-night';
+  const identityMode = game.rules.flow?.identityCheck;
+  const progressiveIdentity = night
+    && stage !== 'identity-check'
+    && (identityMode === 'during-night' || identityMode === 'at-nightfall' && identityConfirmed.length >= game.players.length);
   const identitySeats = progressiveIdentity ? callIdentitySeats(game, stage as NightCall) : [];
+  const identityTotal = progressiveIdentity
+    ? identityMode === 'at-nightfall' ? game.players.length : nightIdentitySeats(game).length
+    : 0;
+  const identityUnit = identityMode === 'at-nightfall' ? '个已确认座位' : '个夜间行动座位';
   const identityLabel = stage === 'wolves' ? '狼人阵营' : ROLES[stage as keyof typeof ROLES]?.name ?? '当前角色';
+  const identityHint = actorStatus.blockedByFear
+    ? '角色仍存活，但本夜被恐惧，不能行动；本步仍保留身份核对。'
+    : !actorStatus.hasActor
+      ? '角色已出局，按赛前设置保留空唤醒，不录入行动。'
+      : '先核对本步身份或阵营，确认后立即完成本步技能。';
 
   return (
     <View style={styles.flex}>
@@ -96,19 +108,19 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
             <View style={styles.rowBetween}>
               <View style={styles.identityHead}>
                 <Icon name="eye" size={18} color={colors.textSecondary} />
-                <Text style={type.headline}>本步身份</Text>
+                <Text style={type.headline}>本步身份/阵营</Text>
               </View>
-              <Text style={type.caption}>已记 {identityConfirmed.length} / {game.players.length}</Text>
+              <Text accessibilityLabel={`身份记录 ${identityConfirmed.length} / ${identityTotal} ${identityUnit}`} style={type.caption}>已记 {identityConfirmed.length} / {identityTotal} {identityUnit}</Text>
             </View>
             <Text accessibilityLabel="本步身份座位" selectable style={styles.identitySeats}>{identitySeats.length ? identitySeats.map(seat => `${seat}号`).join('、') : '暂无可显示座位'}</Text>
-            <Text style={type.footnote}>{identityLabel}。完成这一步后自动记入身份记录；公开台词仍只念角色名，不念座位号。</Text>
+            <Text style={type.footnote}>{identityLabel}。{identityHint}完成本步后自动记入身份记录；公开台词仍只念角色名，不念座位号。</Text>
           </Card>
         ) : null}
 
         {stage === 'identity-check' ? (
           <Card style={styles.panel}>
             <View style={styles.rowBetween}>
-              <Text style={type.headline}>逐人确认身份</Text>
+              <Text style={type.headline}>旧版逐座身份核对</Text>
               <Text style={type.caption}>已确认 {identityConfirmed.length} / {game.players.length}</Text>
             </View>
             <Text style={type.footnote}>请玩家闭眼。主持人按座位逐人核对，公开只读座位号；具体身份留在上方“仅主持人看”区域。也可以点选其他未确认座位调整顺序。</Text>

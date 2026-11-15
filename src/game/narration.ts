@@ -103,10 +103,10 @@ function nightPrivateNote(game: Game, selected: number | null): string {
   const actors = game.stage === 'wolves' ? knifeActors(game) : game.players.filter(player => player.alive && player.role === role);
   const identitySeats = callIdentitySeats(game, game.stage === 'wolves' ? 'wolves' : role);
   const identityLabel = game.stage === 'wolves' ? '狼人阵营' : ROLES[role].name;
-  const identityPrefix = `仅主持人核对。本步身份座位：${seatList(identitySeats) || '无'}（${identityLabel}）。`;
+  const identityPrefix = `仅主持人核对。本步身份/阵营：${seatList(identitySeats) || '无'}（${identityLabel}）。`;
   if (!status.hasActor) return `${identityPrefix}本角色已出局，${shouldKeepDeadCalls(game.rules) ? '按赛前设置照常念完睁眼、行动、闭眼台词，避免通过省略流程暴露身份。' : '本夜无需行动。'}无需选择目标，点击下方按钮继续。`;
   if (status.blockedByFear) return `${identityPrefix}本角色仍存活，但本夜被噩梦之影恐惧，不能行动。公开台词仍照常念完，避免通过流程判断恐惧目标；无需选择目标，点击下方按钮继续。`;
-  let note = `仅主持人核对。本步行动座位：${seatList(actors.map(player => player.seat)) || '无存活角色'}（${identityLabel}）。`;
+  let note = `${identityPrefix}本步行动座位：${seatList(actors.map(player => player.seat)) || '无存活角色'}。先确认身份/阵营，再立即执行本步技能。`;
   if (selected !== null) {
     note += `已选目标：${numbered(selected)}。`;
     const target = game.players.find(player => player.seat === selected);

@@ -30,10 +30,19 @@ export function knifeActors(g: Game): Player[] {
 
 /** All seats represented by a wake-up call, including dead roles retained for concealment. */
 export function callIdentitySeats(g: Game, call: NightCall): number[] {
-  const players = call === 'wolves'
-    ? g.players.filter(player => isWolfTeam(player.role))
-    : g.players.filter(player => player.role === call);
-  return players.map(player => player.seat).sort((left, right) => left - right);
+  if (call === 'wolves') {
+    const seats = new Set([
+      ...g.players.filter(player => isWolfTeam(player.role)).map(player => player.seat),
+      ...knifeActors(g).map(player => player.seat),
+    ]);
+    return [...seats].sort((left, right) => left - right);
+  }
+  return g.players.filter(player => player.role === call).map(player => player.seat).sort((left, right) => left - right);
+}
+
+/** All seats that can be identified by the configured night action sequence. */
+export function nightIdentitySeats(g: Game): number[] {
+  return [...new Set(g.nightCalls.flatMap(call => callIdentitySeats(g, call)))].sort((left, right) => left - right);
 }
 
 function recordNightCallIdentity(g: Game, call: NightCall) {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing, type } from '../../theme';
-import { alive } from '../../game/engine';
+import { alive, nightIdentitySeats } from '../../game/engine';
 import { ROLES } from '../../game/roles';
 import { ROLE_REFERENCE } from '../../game/role-reference';
 import type { Game, Player } from '../../game/types';
@@ -15,7 +15,13 @@ export function SeatsPage({ game, showRoles, onToggleRoles }: { game: Game; show
   const player = openSeat === null ? null : game.players.find(item => item.seat === openSeat) ?? null;
   const dead = game.players.filter(item => !item.alive);
   const identityConfirmed = game.identityConfirmed ?? [];
-  const progressiveIdentity = game.rules.flow?.identityCheck === 'during-night';
+  const identityMode = game.rules.flow?.identityCheck;
+  const progressiveIdentity = identityMode === 'during-night'
+    || identityMode === 'at-nightfall' && identityConfirmed.length >= game.players.length;
+  const identityTotal = progressiveIdentity
+    ? identityMode === 'at-nightfall' ? game.players.length : nightIdentitySeats(game).length
+    : 0;
+  const identityUnit = identityMode === 'at-nightfall' ? '个已确认座位' : '个夜间行动座位';
   const responsive = useResponsive();
   return (
     <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: responsive.gutter, width: '100%', maxWidth: responsive.maxContentWidth, alignSelf: 'center' }]} showsVerticalScrollIndicator={false}>
@@ -39,10 +45,10 @@ export function SeatsPage({ game, showRoles, onToggleRoles }: { game: Game; show
 
       {progressiveIdentity ? <View style={styles.identityRecord}>
         <View style={styles.identityRecordHead}>
-          <Text style={type.headline}>夜间身份记录</Text>
-          <Text style={type.caption}>{identityConfirmed.length} / {game.players.length} 个座位</Text>
+          <Text style={type.headline}>夜间行动身份记录</Text>
+          <Text accessibilityLabel={`身份记录 ${identityConfirmed.length} / ${identityTotal} ${identityUnit}`} style={type.caption}>{identityConfirmed.length} / {identityTotal} {identityUnit}</Text>
         </View>
-        <Text style={type.footnote}>这不是开局确认步骤。每次某个身份完成正常夜间行动后，对应座位会自动追加到这里。</Text>
+        <Text style={type.footnote}>这不是开局确认步骤。夜间行动流程按顺序先确认身份或阵营，再执行技能；完成该步后，对应座位会自动追加到这里。</Text>
         <Text selectable style={styles.identityProgress}>{identityConfirmed.length ? identityConfirmed.map(seat => `${seat} 号`).join('、') : '尚未记录；轮到第一个夜间角色行动时开始逐步确认。'}</Text>
       </View> : null}
 

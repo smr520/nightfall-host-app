@@ -15,6 +15,12 @@ export function shouldKeepDeadCalls(rules: Pick<Rules, 'flow'>): boolean {
   return rules.flow?.keepDeadCalls !== false;
 }
 
+/** New games use confirm-and-act during the normal night; the old stage is kept only for old saves. */
+export function rulesForNewGame(rules: Rules): Rules {
+  if (rules.flow?.identityCheck !== 'at-nightfall') return rules;
+  return { ...rules, flow: { ...rules.flow, identityCheck: 'during-night' } };
+}
+
 export function resolveNightOrder(counts: Counts, flow?: HostingFlow): NightCall[] {
   const defaultOrder = nightCallsFor(counts);
   const requested = flow?.nightOrder;
