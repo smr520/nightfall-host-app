@@ -1,12 +1,14 @@
 import { DAWN_CAUSES } from './flow';
-import { canExplode } from './role-behavior';
 import { ROLES, isCallScheduled, isVillager, isWolf } from './roles';
 import { tableRules } from './table-rules';
 import type { Action, Game, NightCall } from './types';
 import type { ActionContext, ActionOf } from './action-context';
 import { addCheckDeath, isNightmareFeared } from './action-helpers';
+import { createDeathActionHandlers } from './death-action-handlers';
 
 export function createActionHandlers(ctx: ActionContext) {
+  const death = createDeathActionHandlers(ctx);
+
   function dispatch(g: Game, action: Action) {
     switch (action.type) {
       case 'skip-night': applySkipNight(g, action); break;
@@ -22,20 +24,21 @@ export function createActionHandlers(ctx: ActionContext) {
       case 'dawn': applyDawn(g); break;
       case 'set-dawn-deaths': applySetDawnDeaths(g, action); break;
       case 'announce-dawn': applyAnnounceDawn(g); break;
+      case 'last-words': applyLastWords(g, action); break;
       case 'signup': applySignup(g, action); break;
       case 'ballot': applyBallot(g, action); break;
       case 'ballots': applyBallots(g, action); break;
       case 'count': applyCount(g); break;
       case 'start-exile': applyStartExile(g); break;
       case 'next-night': applyNextNight(g); break;
-      case 'hunter': applyHunter(g, action); break;
-      case 'shot': applyShot(g, action); break;
-      case 'link': applyLink(g, action); break;
-      case 'badge': applyBadge(g, action); break;
-      case 'explode': applyExplode(g, action); break;
-      case 'ruling': applyRuling(g, action); break;
+      case 'hunter': death.hunter(g, action); break;
+      case 'shot': death.shot(g, action); break;
+      case 'link': death.link(g, action); break;
+      case 'badge': death.badge(g, action); break;
+      case 'explode': death.explode(g, action); break;
+      case 'ruling': death.ruling(g, action); break;
       case 'note': applyNote(g, action); break;
-      case 'finish': applyFinish(g, action); break;
+      case 'finish': death.finish(g, action); break;
     }
   }
 
@@ -320,6 +323,16 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.advance(g);
   }
 
+  function applyLastWords(g: Game, action: ActionOf<'last-words'>) {
+    ctx.requireStage(g, 'last-words');
+    const pending = g.pending[0];
+    ctx.demand(pending?.kind === 'last-words', '当前没有待处理的遗言');
+    g.pending.shift();
+    const result = `${pending!.seat} 号${action.speak ? '发表遗言' : '放弃遗言'}`;
+    ctx.log(g, result, result);
+    ctx.advance(g);
+  }
+
   function applySignup(g: Game, action: ActionOf<'signup'>) {
     ctx.requireStage(g, 'sheriff-signup');
     ctx.demand(new Set(action.seats).size === action.seats.length, '参选名单重复');
@@ -408,90 +421,10 @@ export function createActionHandlers(ctx: ActionContext) {
     ctx.advance(g);
   }
 
-  function applyHunter(g: Game, action: ActionOf<'hunter'>) {
-    ctx.requireStage(g, 'hunter');
-    ctx.target(g, action.target);
-    const skill = g.pending.shift()!;
-    const detail = action.target === null ? '不开枪' : `开枪带走 ${action.target} 号`;
-    ctx.log(g, `${skill.seat} 号猎人${detail}`, `${skill.seat} 号猎人${detail}`);
-    if (action.target !== null) ctx.kill(g, action.target, 'shot');
-    ctx.advance(g);
-  }
-
-  function applyShot(g: Game, action: ActionOf<'shot'>) {
-    ctx.requireStage(g, 'shot');
-    ctx.target(g, action.target);
-    const skill = g.pending.shift()!;
-    const name = skill.role ? ROLES[skill.role].name : '出局角色';
-    const detail = action.target === null ? '放弃带人' : `带走 ${action.target} 号`;
-    ctx.log(g, `${skill.seat} 号${name}${detail}`, `${skill.seat} 号${name}${detail}`);
-    if (action.target !== null) ctx.kill(g, action.target, 'shot');
-    ctx.advance(g);
-  }
-
-  function applyLink(g: Game, action: ActionOf<'link'>) {
-    ctx.requireStage(g, 'link');
-    const skill = g.pending[0];
-    ctx.demand(skill?.kind === 'link', '没有待处理的殉情技能');
-    ctx.demand(action.target === null || skill.target === undefined || action.target === skill.target, '只能确认已记录的魅惑目标');
-    const targetSeat = skill.target ?? action.target;
-    const linked = targetSeat === null ? null : ctx.player(g, targetSeat);
-    g.pending.shift();
-    const detail = linked === null ? '无人殉情' : linked.alive ? `${targetSeat} 号随之出局` : `${targetSeat} 号已出局，无需重复殉情`;
-    ctx.log(g, `${skill.seat} 号狼美人出局，${detail}`, detail);
-    if (linked?.alive) ctx.kill(g, linked.seat, 'link');
-    ctx.advance(g);
-  }
-
-  function applyBadge(g: Game, action: ActionOf<'badge'>) {
-    ctx.requireStage(g, 'badge');
-    ctx.target(g, action.target);
-    ctx.demand(action.target === null || !ctx.player(g, action.target).exposed, '不能移交给已翻牌白痴');
-    const skill = g.pending.shift()!;
-    g.sheriff = action.target;
-    ctx.log(g, `${skill.seat} 号警徽${action.target === null ? '撕毁' : `移交 ${action.target} 号`}`, action.target === null ? '警徽撕毁' : `${action.target} 号接任警长`);
-    ctx.advance(g);
-  }
-
-  function applyExplode(g: Game, action: ActionOf<'explode'>) {
-    ctx.requireStage(g, 'discussion');
-    const p = ctx.player(g, action.seat);
-    ctx.demand(
-      canExplode(g, action.seat),
-      p.alive && isWolf(p.role) ? `${ROLES[p.role].name}不能自爆` : '只有存活狼人可以自爆',
-    );
-    ctx.kill(g, action.seat, 'explode');
-    ctx.log(g, `${action.seat} 号${ROLES[p.role].name}自爆，结束白天`, `${action.seat} 号狼人自爆`);
-    g.resume = 'night';
-    ctx.advance(g);
-  }
-
-  function applyRuling(g: Game, action: ActionOf<'ruling'>) {
-    ctx.requireStage(g, 'discussion');
-    ctx.demand(action.reason.trim().length >= 2, '请填写至少两个字的裁定原因');
-    const p = ctx.player(g, action.seat);
-    ctx.demand(p.alive !== action.alive, '玩家状态未改变');
-    if (action.alive) {
-      p.alive = true;
-      delete p.death;
-    } else {
-      ctx.kill(g, p.seat, 'ruling');
-    }
-    ctx.log(g, `人工裁定：${p.seat} 号${action.alive ? '恢复存活' : '出局'}；原因：${action.reason.trim()}`, `${p.seat} 号状态由主持人调整`);
-    g.resume = 'discussion';
-    ctx.advance(g);
-  }
-
   function applyNote(g: Game, action: ActionOf<'note'>) {
     ctx.demand(typeof action.text === 'string' && action.text.trim().length > 0, '请填写备忘内容');
     ctx.demand(action.text.trim().length <= 1200, '备忘内容不能超过 1200 字');
     ctx.log(g, `主持备忘：${action.text.trim()}`);
-  }
-
-  function applyFinish(g: Game, action: ActionOf<'finish'>) {
-    ctx.demand(['good', 'wolf', 'third', 'draw'].includes(action.winner), '胜方无效');
-    ctx.demand(action.reason.trim().length >= 2, '请填写结束原因');
-    ctx.end(g, action.winner, `主持人裁定：${action.reason.trim()}`);
   }
 
   return { dispatch };

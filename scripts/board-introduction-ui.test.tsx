@@ -41,7 +41,7 @@ describe('board-library introductions', () => {
     app.openLibrary();
     const library = app.library();
     const introLabels = Array.from(new Set(app.buttons(library).map(node => node.props.accessibilityLabel).filter((label: unknown) => typeof label === 'string' && label.startsWith('查看介绍：'))));
-    expect(introLabels).toEqual(BOARD_LIBRARY.map(board => `查看介绍：${board.name}`));
+    expect(new Set(introLabels)).toEqual(new Set(BOARD_LIBRARY.map(board => `查看介绍：${board.name}`)));
     for (const board of BOARD_LIBRARY) {
       const select = app.button(`选择板子：${board.name}`, library)!;
       expect(select.findAll(node => node.props.accessibilityLabel === `查看介绍：${board.name}`)).toHaveLength(0);
@@ -59,7 +59,8 @@ describe('board-library introductions', () => {
     expect(app.renderer.root.findByProps({ accessibilityLabel: '对局名称' }).props.value).toBe('周末局');
     app.press('返回板子库', app.library());
     expect(app.button('常规', app.library())?.props.accessibilityState.selected).toBe(true);
-    expect(Array.from(new Set(app.buttons(app.library()).map(node => node.props.accessibilityLabel).filter((label: unknown) => typeof label === 'string' && label.startsWith('选择板子：'))))).toEqual(CLASSIC_BOARDS.map(board => `选择板子：${board.name}`));
+    expect(new Set(app.buttons(app.library()).map(node => node.props.accessibilityLabel).filter((label: unknown) => typeof label === 'string' && label.startsWith('选择板子：'))))
+      .toEqual(new Set(CLASSIC_BOARDS.map(board => `选择板子：${board.name}`)));
     act(() => app.library().props.onClose());
     expect(app.button(`当前板子 ${BOARD_LIBRARY[0].name}，点击更换`)).toBeDefined();
     app.press('返回');
@@ -81,6 +82,16 @@ describe('board-library introductions', () => {
     app.press('用这个板子', app.library());
     expect(app.button('当前板子 狼美人骑士，点击更换')).toBeDefined();
     expect(app.onStart).not.toHaveBeenCalled();
+    app.unmount();
+  });
+
+  it('shows the exact support level in the library and board introduction', () => {
+    const app = mount();
+    app.openLibrary();
+    expect(app.library().findAll(node => node.props.accessibilityLabel === '板子支持等级：已验证').length).toBeGreaterThan(0);
+    app.press('查看介绍：狼王计划', app.library());
+    expect(app.introduction().findAll(node => node.props.accessibilityLabel === '板子支持等级：实验中').length).toBeGreaterThan(0);
+    expect(app.text(app.introduction())).toContain('主要人工处理');
     app.unmount();
   });
 

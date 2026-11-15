@@ -1,4 +1,4 @@
-import { isHostingProfile, normalizePreferences, type HostPreferences } from './preferences';
+import { isHostingProfile, normalizePreferences, portablePreferences, type HostPreferences } from './preferences';
 import { isSetupMemory } from './setup-memory';
 import { decodeSession, migrateGame } from './save-schema';
 import type { Game, Session } from './types';
@@ -69,7 +69,7 @@ function parsePreferences(value: unknown): HostPreferences {
     throw new Error('所选个性化方案不存在');
   }
   if (parsed.lastSetup !== undefined && !isSetupMemory(parsed.lastSetup)) throw new Error('上次开局设置无效');
-  return normalizePreferences(parsed);
+  return portablePreferences(normalizePreferences(parsed));
 }
 
 function validateLegacyRecovery(value: unknown): void {
@@ -131,6 +131,6 @@ export function createBackup(payload: Omit<BackupPayload, 'format' | 'version' |
     exportedAt,
     session: payload.session,
     history: payload.history,
-    preferences: normalizePreferences(payload.preferences),
+    preferences: portablePreferences(normalizePreferences(payload.preferences)),
   };
 }

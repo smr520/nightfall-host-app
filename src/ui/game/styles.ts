@@ -31,6 +31,8 @@ export const styles = StyleSheet.create({
   nextStepText: { ...type.footnote, flex: 1 },
   help: { ...type.footnote, lineHeight: 20 },
   privatePrompt: { gap: 6, padding: spacing.lg, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm },
+  supportBanner: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.md, padding: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface },
+  supportBannerText: { flex: 1, minWidth: 190, gap: 2 },
   privateLabel: { ...type.caption, color: colors.textSecondary },
   privateText: { ...type.footnote, lineHeight: 22 },
   panel: { gap: spacing.md, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },

@@ -12,19 +12,22 @@ import { hostingModeLabel, type HostingMode, type HostingProfile } from './prefe
 import { setupSummary, type SetupMemory } from '../game/setup-memory';
 import { useResponsive } from './responsive';
 
-export function HomeScreen({ session, history, hostingMode, selectedProfile, lastSetup, preferenceError, onPersonalize, disabled, onNew, onRepeat, onResume, onHistory, onUndo, onSwitchRole }: {
+export function HomeScreen({ session, history, hostingMode, selectedProfile, lastSetup, preferenceError, saving, saveError, lastSavedAt, onPersonalize, disabled, onNew, onRepeat, onResume, onHistory, onUndo, onSwitchRole }: {
   session: Session | null;
   history: Game[];
   hostingMode: HostingMode;
   selectedProfile?: HostingProfile;
   lastSetup?: SetupMemory;
   preferenceError?: string;
+  saving?: boolean;
+  saveError?: string;
+  lastSavedAt?: number;
   onPersonalize: () => void;
   disabled: boolean;
   onNew: () => void;
   onRepeat?: () => void;
   onResume: () => void;
-  onHistory: () => void;
+  onHistory: (gameId?: string) => void;
   onUndo: () => void;
   onSwitchRole?: () => void;
 }) {
@@ -44,7 +47,7 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
     <ScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingHorizontal: responsive.gutter, width: '100%', maxWidth: responsive.maxContentWidth, alignSelf: 'center' }]} showsVerticalScrollIndicator={false}>
       <View style={styles.heading}>
         <Text accessibilityRole="header" style={type.display}>主持台</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="查看全部复盘" onPress={onHistory} style={({ pressed }) => [styles.historyButton, pressed && styles.pressed]}><Icon name="history" size={20} /><Text style={styles.historyButtonText}>复盘</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="查看全部复盘" onPress={() => onHistory()} style={({ pressed }) => [styles.historyButton, pressed && styles.pressed]}><Icon name="history" size={20} /><Text style={styles.historyButtonText}>复盘</Text></Pressable>
       </View>
 
       <View testID={responsive.isWideTablet ? 'home-dashboard' : undefined} style={responsive.isWideTablet ? styles.dashboard : styles.stack}>
@@ -65,7 +68,18 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
           <Button title={active ? '继续主持' : '查看本局'} onPress={onResume} style={styles.flex} />
           {active ? <Button title="撤回" variant="secondary" onPress={onUndo} disabled={!session?.undo.length} style={styles.undo} /> : null}
         </View>
-        <View style={styles.savedLine}><Icon name="check" size={13} color={colors.textSecondary} /><Text style={styles.savedNote}>已自动保存到本机</Text></View>
+        <View style={styles.savedLine}>
+          <Icon name={saveError ? 'close' : 'check'} size={13} color={saveError ? colors.danger : colors.textSecondary} />
+          <Text style={[styles.savedNote, saveError && { color: colors.danger }]}>
+            {saveError
+              ? '保存失败，请先重试保存'
+              : saving
+                ? '正在保存，请保持应用打开'
+                : lastSavedAt
+                  ? `已保存 ${new Date(lastSavedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+                  : '存档已从本机读取'}
+          </Text>
+        </View>
       </View> : null}
 
       <View style={[styles.newGame, current && styles.newGameCompact]}>
@@ -94,7 +108,7 @@ export function HomeScreen({ session, history, hostingMode, selectedProfile, las
         <View testID={responsive.isWideTablet ? 'home-side-column' : undefined} style={responsive.isWideTablet ? styles.sideColumn : styles.stack}>
       <View style={styles.recentSection}>
         <View style={styles.rowBetween}><Text accessibilityRole="header" style={styles.sectionTitle}>最近复盘</Text><Text style={type.caption}>{history.length} 场</Text></View>
-        {history.length ? history.slice(0, responsive.isTablet ? 6 : 3).map(game => <Pressable key={game.id} accessibilityRole="button" accessibilityLabel={`复盘 ${game.name}`} onPress={onHistory} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+        {history.length ? history.slice(0, responsive.isTablet ? 6 : 3).map(game => <Pressable key={game.id} accessibilityRole="button" accessibilityLabel={`复盘 ${game.name}`} onPress={() => onHistory(game.id)} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
           <View style={styles.dateBlock}><Text style={styles.dateDay}>{new Date(game.startedAt).getDate().toString().padStart(2, '0')}</Text><Text style={styles.dateMonth}>{new Date(game.startedAt).getMonth() + 1} 月</Text></View>
           <View style={styles.flex}><Text style={type.callout}>{game.name}</Text><Text style={styles.historyMeta}>{game.board} · {game.players.length} 人</Text></View>
           <Text style={[styles.result, game.winner === 'wolf' && styles.resultWolf, game.winner === 'good' && styles.resultGood]}>{winnerLabel(game.winner ?? 'draw').replace('阵营胜利', '胜')}</Text><Icon name="chevron-right" size={15} color={colors.textTertiary} />

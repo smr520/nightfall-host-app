@@ -52,6 +52,24 @@ describe('personal hosting preferences', () => {
     expect(await createGameStorage(kv).readPreferences()).toEqual(preferences);
   });
 
+  it('round-trips the host reading size independently of table plans', async () => {
+    const { storage, kv } = memoryStore();
+    await storage.readPreferences();
+    const preferences = { hostingMode: 'standard' as const, profiles: [profile()], textSize: 'xlarge' as const };
+    await storage.persistPreferences(preferences);
+    expect(await createGameStorage(kv).readPreferences()).toEqual(preferences);
+  });
+
+  it('isolates an invalid host reading size without dropping valid profiles', async () => {
+    const { values, storage } = memoryStore();
+    const raw = JSON.stringify({ hostingMode: 'standard', profiles: [profile()], textSize: 'huge' });
+    values.set(STORAGE_KEYS.preferences, raw);
+    const read = await storage.readPreferences();
+    expect(read.profiles).toEqual([profile()]);
+    expect(read.textSize).toBeUndefined();
+    expect(JSON.parse(values.get(STORAGE_KEYS.recovery)!)[0]).toMatchObject({ source: STORAGE_KEYS.preferences, raw });
+  });
+
   it('backs up a corrupted last setup while keeping usable plans', async () => {
     const { values, storage } = memoryStore();
     const raw = JSON.stringify({ hostingMode: 'standard', profiles: [profile()], lastSetup: { ...setup(), playerNames: [] } });

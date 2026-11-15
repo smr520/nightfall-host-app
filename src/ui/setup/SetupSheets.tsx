@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { BOARD_LIBRARY, boardSeats, type Board } from '../../game/boards';
+import { compareBoardSupport } from '../../game/board-support';
 import { boardIntroduction } from '../../game/board-reference';
 import { isIdentityCard } from '../../game/role-catalog';
 import { ROLE_REFERENCE } from '../../game/role-reference';
@@ -11,7 +12,7 @@ import { boardLine } from '../labels';
 import { Icon } from '../Icon';
 import { MotionPressable } from '../motion';
 import { colors, type } from '../../theme';
-import { BoardIntroduction } from './BoardIntroduction';
+import { BoardIntroduction, BoardSupportBadge } from './BoardIntroduction';
 import { RoleStepper } from './Controls';
 import { FILTERS, type Filter } from './board-filter';
 import { styles } from './styles';
@@ -42,7 +43,7 @@ export function BoardLibrarySheet({ visible, board, preview, filter, search, boa
       onRequestClose={() => { if (preview) onClearPreview(); else onClose(); }}
       contentKey={preview ? `introduction-${preview.id}` : `library-${filter}-${search}`}
       title={preview ? '板子介绍' : '板子库'}
-      subtitle={preview ? '先了解玩法，再确认选择' : `${BOARD_LIBRARY.length} 个完整板子，可先查看介绍`}
+      subtitle={preview ? '先了解玩法、支持范围，再确认选择' : `${BOARD_LIBRARY.length} 个完整板子 · 已验证阵容优先`}
       footer={preview ? <>
         <Button title="返回板子库" variant="ghost" onPress={onClearPreview} />
         <Button title={preview === board ? '继续使用当前板子' : '用这个板子'} onPress={() => onChoose(preview)} />
@@ -62,7 +63,7 @@ export function BoardLibrarySheet({ visible, board, preview, filter, search, boa
         />
         {!boards.length ? <Text style={type.footnote}>没有符合条件的板子。可以清空搜索，或切换到“全部”。</Text> : null}
         <View style={[styles.libraryGrid, isTablet && styles.libraryGridWide]}>
-          {boards.map(item => (
+          {[...boards].sort(compareBoardSupport).map(item => (
             <View key={item.id} style={[styles.libraryRow, isTablet && styles.libraryRowWide, item.id === board.id && styles.libraryRowActive]}>
               <MotionPressable
                 accessibilityRole="button"
@@ -76,6 +77,7 @@ export function BoardLibrarySheet({ visible, board, preview, filter, search, boa
                     <Text style={[type.headline, styles.flex]}>{item.name}</Text>
                     {item.id === board.id ? <Icon name="check" size={18} color={colors.accent} /> : null}
                   </View>
+                  <BoardSupportBadge board={item} />
                   <Text style={type.footnote}>{boardLine(item.roles)}{item.catalog ? ` · ${item.catalog.edition}` : ''}</Text>
                   <Text style={styles.libraryOverview} numberOfLines={2}>{boardIntroduction(item).overview}</Text>
                 </View>

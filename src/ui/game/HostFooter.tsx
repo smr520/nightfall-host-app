@@ -58,6 +58,7 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
       return;
     }
     if (stage === 'discussion') { doAction({ type: 'start-exile' }); return; }
+    if (stage === 'last-words') { doAction({ type: 'last-words', speak: true }); return; }
     if (stage === 'dancer') { doAction({ type: 'dance', seats: draft.dance }); return; }
     if (stage === 'heir') { doAction({ type: 'heir', target: draft.selected }); return; }
     if (stage === 'hunter' || stage === 'shot' || stage === 'badge') { doAction({ type: stage, target: draft.selected } as Action); return; }
@@ -84,6 +85,10 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
   if (voting && draft.pkSpeaking) { primaryLabel = '发言结束，开始 PK 投票'; primaryDisabled = false; }
   if (stage === 'discussion') primaryLabel = '开始放逐投票';
   if (stage === 'ended') { primaryLabel = '返回首页'; primaryDisabled = false; }
+  if (stage === 'last-words') {
+    primaryLabel = pending?.kind === 'last-words' ? `确认 ${pending.seat} 号遗言结束` : '确认遗言结束';
+    primaryDisabled = pending?.kind !== 'last-words';
+  }
   if (stage === 'link') { primaryLabel = '确认殉情出局'; primaryDisabled = false; }
   if (stage === 'hunter' || stage === 'shot') {
     primaryLabel = draft.selected === null ? (stage === 'hunter' ? '选择开枪目标' : '选择带人目标') : stage === 'hunter' ? `确认开枪带走 ${draft.selected} 号` : `确认带走 ${draft.selected} 号`;
@@ -105,6 +110,7 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
     }
     if (stage === 'hunter' || stage === 'shot') return { label: stage === 'hunter' ? '不开枪' : '放弃带人', run: () => doAction({ type: stage, target: null } as Action) };
     if (stage === 'badge') return { label: '撕毁警徽', run: () => doAction({ type: 'badge', target: null }) };
+    if (stage === 'last-words') return { label: '放弃遗言', run: () => doAction({ type: 'last-words', speak: false }) };
     if (stage === 'discussion') return { label: '不放逐，进入下一夜', run: () => doAction({ type: 'next-night' }) };
     if (night && actorAlive) {
       if (stage === 'nine-tails' || stage === 'dancer') return null;
@@ -120,6 +126,7 @@ export function HostFooter({ game, stage, draft, activeVoter, voteRecorded, doAc
     if (voting && draft.pkSpeaking) return '当前为 PK 发言，结束发言后再录入本轮投票';
     if (voting && editingBallot) return `正在修改 ${activeVoter} 号，更新或取消后再计票`;
     if (stage === 'sheriff-vote' || stage === 'exile-vote') return voteRecorded ? '所有玩家已记录，可以计票' : `还需记录 ${game.vote ? game.vote.voters.filter(seat => game.vote!.ballots[seat] === undefined).length : 0} 人`;
+    if (stage === 'last-words') return pending?.kind === 'last-words' ? `当前轮到 ${pending.seat} 号；未发言可点“放弃遗言”` : '当前没有待处理的遗言';
     if (night && !actorAlive) return '该角色已出局，本夜无需选择目标';
     if (stage === 'dancer') return draft.dance.length === 3 ? '舞池已选满三人' : `还需选择 ${3 - draft.dance.length} 人进入舞池`;
     if (stage === 'nine-tails') return draft.selected === null ? '九尾每夜必须标记一名玩家' : `将标记 ${draft.selected} 号`;

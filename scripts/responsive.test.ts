@@ -3,10 +3,14 @@ import { BREAKPOINTS, clampFontScale, layoutClassFor, shouldSplitHost } from '..
 describe('responsive layout classes', () => {
   it('classifies phones, tablets and large tablets/landscape', () => {
     expect(layoutClassFor(320)).toBe('compact');
+    expect(layoutClassFor(390)).toBe('compact');
     expect(layoutClassFor(BREAKPOINTS.medium - 1)).toBe('compact');
     expect(layoutClassFor(BREAKPOINTS.medium)).toBe('medium');
+    expect(layoutClassFor(768)).toBe('medium');
     expect(layoutClassFor(BREAKPOINTS.expanded - 1)).toBe('medium');
     expect(layoutClassFor(BREAKPOINTS.expanded)).toBe('expanded');
+    expect(layoutClassFor(1024)).toBe('expanded');
+    expect(layoutClassFor(1280)).toBe('expanded');
     expect(layoutClassFor(1600)).toBe('expanded');
   });
 
@@ -16,12 +20,14 @@ describe('responsive layout classes', () => {
     expect(shouldSplitHost(BREAKPOINTS.expanded, 'seats')).toBe(false);
   });
 
-  it('clamps system font scaling so seat grids and buttons stay usable', () => {
+  it('supports large accessibility text through two times system scaling', () => {
     expect(clampFontScale(0)).toBe(1);
     expect(clampFontScale(Number.NaN)).toBe(1);
-    expect(clampFontScale(0.5)).toBe(0.9);
+    expect(clampFontScale(0.5)).toBe(0.8);
     expect(clampFontScale(1)).toBe(1);
     expect(clampFontScale(1.2)).toBe(1.2);
-    expect(clampFontScale(3)).toBe(1.35);
+    expect(clampFontScale(1.5)).toBe(1.5);
+    expect(clampFontScale(2)).toBe(2);
+    expect(clampFontScale(3)).toBe(2);
   });
 });

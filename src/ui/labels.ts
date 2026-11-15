@@ -25,6 +25,16 @@ export function stageInfo(stage: Stage, game?: Game): StageInfo {
       help: `${beforeAnnouncement ? '未公布的夜间死者仍按当前资格参与本轮。' : '已公布的出局玩家不再投票。'}每人记录目标或弃票。平票 PK 一次，再平票警徽流失。`,
     };
   }
+  if (game && stage === 'last-words') {
+    const seat = game.pending.find(item => item.kind === 'last-words')?.seat;
+    return {
+      ...STAGES['last-words'],
+      script: customScript ?? (seat
+        ? `请 ${seat} 号玩家发表遗言。其他玩家请保持安静。发言结束后，由主持人继续处理后续技能和流程。`
+        : STAGES['last-words'].script),
+      help: '逐人完成或放弃遗言；队列结束后再处理出局技能、警徽和胜负。',
+    };
+  }
   if (Object.prototype.hasOwnProperty.call(STAGES, stage)) return { ...STAGES[stage as keyof typeof STAGES], ...(customScript ? { script: customScript } : {}) };
   if (stage === 'wolves') return { title: '狼人行动', short: '狼人', script: customScript ?? ROLES.wolf.night!.script, help: ROLES.wolf.night!.help };
   const role = ROLES[stage as keyof typeof ROLES];

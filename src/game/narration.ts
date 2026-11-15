@@ -26,6 +26,8 @@ export function latestPublicOutcome(game: Game): PublicOutcome | null {
   let matches = false;
   if (event.stage === 'dawn' || event.stage === 'dawn-announcement') {
     matches = /^昨夜(?:平安夜|\s+\d+\s*号(?:、\d+\s*号)*\s*出局)$/.test(spoken);
+  } else if (event.stage === 'last-words') {
+    matches = /^\d+\s*号(?:发表|放弃)遗言$/.test(spoken);
   } else if (event.stage === 'sheriff-signup' || event.stage === 'sheriff-vote' || event.stage === 'exile-vote') {
     matches = /^(?:\d+\s*号(?:被放逐|白痴翻牌免死，失去投票权|当选警长)|警徽流失|本轮无人被放逐)$/.test(spoken);
   } else if (event.stage === 'hunter' || event.stage === 'shot') {
@@ -212,6 +214,19 @@ export function hostNarration(game: Game, fallback: string, context: NarrationCo
       const announcement = nightAnnouncement(game);
       result = { headline: announcement, spoken: `天亮了，请所有玩家睁眼。${sentence(announcement)}${announcement.includes('平安夜') ? '请各位玩家保持安静，等待下一环节。' : '请出局玩家暂时保持安静，等待遗言或技能环节。'}`, privateNote };
     }
+  } else if (stage === 'last-words') {
+    const lastWords = pending?.kind === 'last-words' ? pending : undefined;
+    const seat = lastWords?.seat ?? null;
+    const deadPlayer = seat === null ? undefined : game.players.find(item => item.seat === seat);
+    result = {
+      headline: seat === null ? '等待遗言队列' : `请 ${seat} 号玩家发表遗言`,
+      spoken: seat === null
+        ? '当前没有待处理的遗言，请主持人检查后续流程。'
+        : `请 ${seat} 号玩家发表遗言。其他玩家请保持安静。发言结束后，由主持人继续处理后续技能和流程。`,
+      privateNote: deadPlayer?.death
+        ? `仅主持人核对：${seat} 号因${deadPlayer.death.cause === 'exile' ? '放逐' : deadPlayer.death.cause === 'explode' ? '自爆' : '本局死亡效果'}出局，已按赛前约定进入遗言队列。`
+        : '仅主持人核对：按当前队列处理遗言，不向其他玩家读出私密死因。',
+    };
   } else if (stage === 'sheriff-signup') {
     const timing = game.announcementReady ? '昨夜结果将在竞选后公布。' : hasAnnouncedNight(game) ? '昨夜结果已公布。' : '';
     const speaker = context.speaker != null && signup.includes(context.speaker) ? context.speaker : null;

@@ -6,17 +6,17 @@ import { MotionProvider } from '../src/ui/motion';
 import { RoleGate } from '../src/ui/RoleGate';
 
 const original = { window: Dimensions.get('window'), screen: Dimensions.get('screen') };
-const setSize = async (width: number, height = 800) => {
+const setSize = async (width: number, height = 800, fontScale = 1) => {
   await act(async () => {
     Dimensions.set({
-      window: { width, height, scale: 1, fontScale: 1 },
-      screen: { width, height, scale: 1, fontScale: 1 },
+      window: { width, height, scale: 1, fontScale },
+      screen: { width, height, scale: 1, fontScale },
     });
   });
 };
 
-async function mountHome(width: number) {
-  await setSize(width);
+async function mountHome(width: number, height = 800, fontScale = 1) {
+  await setSize(width, height, fontScale);
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -33,15 +33,24 @@ afterEach(async () => {
 });
 
 describe('responsive screens', () => {
-  it('uses one column on phones and two columns on tablets', async () => {
-    const phone = await mountHome(390);
-    expect(phone.root.findAllByProps({ testID: 'home-dashboard' })).toHaveLength(0);
-    await act(async () => { phone.unmount(); });
+  it.each([
+    [320, 740, false],
+    [390, 844, false],
+    [600, 960, false],
+    [768, 1024, true],
+    [1024, 768, true],
+    [1280, 800, true],
+  ])('uses the expected home columns at %s×%s', async (width, height, dashboard) => {
+    const renderer = await mountHome(width, height);
+    expect(renderer.root.findAllByProps({ testID: 'home-dashboard' }).length > 0).toBe(dashboard);
+    expect(renderer.root.findAllByProps({ testID: 'home-side-column' }).length > 0).toBe(dashboard);
+    await act(async () => { renderer.unmount(); });
+  });
 
-    const tablet = await mountHome(768);
-    expect(tablet.root.findAllByProps({ testID: 'home-dashboard' }).length).toBeGreaterThan(0);
-    expect(tablet.root.findAllByProps({ testID: 'home-side-column' }).length).toBeGreaterThan(0);
-    await act(async () => { tablet.unmount(); });
+  it('keeps primary home actions mounted at two times system text', async () => {
+    const phone = await mountHome(320, 740, 2);
+    expect(phone.root.findAllByProps({ accessibilityLabel: '新建一场对局' }).length).toBeGreaterThan(0);
+    await act(async () => { phone.unmount(); });
   });
 
   it('puts the first-use host and player choices side by side on tablets', async () => {

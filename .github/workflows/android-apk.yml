@@ -97,6 +97,23 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
+      - name: Verify APK privacy boundary
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          APKANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer | sort -V | tail -n 1)"
+          test -n "$APKANALYZER"
+          PERMISSIONS="$("$APKANALYZER" manifest permissions "$APK")"
+          printf '%s\n' "$PERMISSIONS"
+          if printf '%s\n' "$PERMISSIONS" | grep -E 'android.permission.(INTERNET|SYSTEM_ALERT_WINDOW|CAMERA|RECORD_AUDIO)'; then
+            echo "APK contains a permission that violates the offline privacy boundary." >&2
+            exit 1
+          fi
+          MANIFEST="$("$APKANALYZER" manifest print "$APK")"
+          if ! printf '%s\n' "$MANIFEST" | grep -q 'android:allowBackup="false"'; then
+            echo "APK must disable Android auto backup." >&2
+            exit 1
+          fi
+
       - name: Name files
         id: package
         run: |
@@ -127,9 +144,9 @@ jobs:
           cat > release-notes.md <<'EOF'
           夜幕 Android 正式版，可直接安装测试。
 
-          包含主持端与玩家端本地数据分离、31 套板子、50 种角色资料、玩家选本与座位出局编辑、手机和平板自适应界面。复杂特殊技能仍按应用内“主持人处理”说明人工裁定。
+          包含主持端与玩家端本地数据分离、31 套板子、50 种角色资料、独立遗言队列、分阶段计时、本局技能处理清单、主持大字档位、手机和平板自适应界面。复杂特殊技能会进入软件内清单并由主持人确认结果。
 
-          此 APK 使用固定发布签名，后续正式版可覆盖安装。应用不联网，卸载会删除本机数据，请先导出备份。
+          此 APK 使用固定发布签名，后续正式版可覆盖安装。正式包不申请网络或悬浮窗权限，并关闭 Android 自动备份。卸载会删除本机数据，请先导出备份。
           EOF
           gh release create "$GITHUB_REF_NAME" \
             "$FILE" \

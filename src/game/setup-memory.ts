@@ -3,6 +3,7 @@ import { createGame, validateCounts } from './engine';
 import { validateFlow } from './flow';
 import { drawJingchengTreasure, treasureReserveLog } from './jingcheng-draw';
 import { isRole, type Role } from './roles';
+import { isValidSpeechSeconds, speechSecondsForRules, validateSpeechDurations } from './speech';
 import { validateTableRules } from './table-rules';
 import type { Game, Rules } from './types';
 import type { HostingMode } from './preferences';
@@ -54,7 +55,8 @@ function validRules(value: unknown, roles: Role[]): value is Rules {
     && oneOf(rules.guardSave, ['die', 'live'])
     && typeof rules.hunterPoison === 'boolean'
     && oneOf(rules.sheriffWeight, [1, 1.5])
-    && typeof rules.speechSeconds === 'number' && Number.isFinite(rules.speechSeconds) && rules.speechSeconds > 0
+    && isValidSpeechSeconds(rules.speechSeconds)
+    && validateSpeechDurations(rules.speechDurations)
     && validateTableRules(rules.table)
     && (rules.flow === undefined || validateFlow(rules.flow, countsFromRoles(counts)));
   if (!valid) return false;
@@ -163,7 +165,7 @@ export function setupSummary(memory: Pick<SetupMemory, 'rules' | 'playerNames'>)
   const parts = [
     memory.rules.sheriff ? '有警长' : '无警长',
     memory.rules.win === 'all' ? '屠城' : '屠边',
-    `发言 ${memory.rules.speechSeconds} 秒`,
+    `发言 ${speechSecondsForRules(memory.rules, 'discussion')} 秒`,
   ];
   if (memory.rules.flow?.nightOrder || memory.rules.flow?.scripts) parts.push('自定义流程');
   if (memory.rules.flow?.manualDawn) parts.push('天亮复核');

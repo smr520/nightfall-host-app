@@ -1,6 +1,7 @@
 import { ROLES, isVillager, isWolf } from './roles';
 import { tableRules } from './table-rules';
 import { roleDeathSkill } from './role-behavior';
+import { queueLastWords } from './last-words';
 import type { Cause, Game, Player } from './types';
 import { alive, log, player } from './shared';
 import { beginNight } from './night';
@@ -114,6 +115,7 @@ export function kill(g: Game, seat: number, cause: Cause) {
     return;
   }
   p.alive = false; p.death = { day: g.day, cause };
+  queueLastWords(g, seat, cause);
   queueDeathSkill(g, p, cause);
   if (g.sheriff === seat) { g.sheriff = null; g.pending.push({ kind: 'badge', seat }); }
 }
@@ -127,6 +129,7 @@ export function resolveDelayedDeaths(g: Game) {
     const p = player(g, death.seat);
     if (!p.alive) continue;
     p.alive = false; p.death = { day: g.day, cause: death.cause };
+    queueLastWords(g, p.seat, death.cause);
     queueDeathSkill(g, p, death.cause);
     if (g.sheriff === p.seat) { g.sheriff = null; g.pending.push({ kind: 'badge', seat: p.seat }); }
     log(g, `${p.seat} 号神职继承人延迟离场，正式出局`);
@@ -165,9 +168,13 @@ export function end(g: Game, winner: 'good' | 'wolf' | 'third' | 'draw', reason:
 }
 
 export function advance(g: Game) {
-  // 死亡技能优先于警徽，避免警徽交给同一批尚未处理的死亡目标。
-  const rank = (kind: string) => kind === 'hunter' || kind === 'shot' || kind === 'link' ? 0 : 1;
-  g.pending.sort((a, b) => rank(a.kind) - rank(b.kind));
+  // 遗言留在出局技能前；死亡技能优先于警徽，避免警徽交给同一批尚未处理的目标。
+  const rank = (kind: string) => {
+    if (kind === 'last-words') return 0;
+    if (kind === 'badge') return 2;
+    return 1;
+  };
+  g.pending.sort((a, b) => rank(a.kind) - rank(b.kind) || a.seat - b.seat);
   if (g.pending.length) { g.stage = g.pending[0].kind; return; }
   const result = g.rules.flow?.manualVictory ? null : victory(g);
   if (result) { end(g, result.winner, result.reason); return; }

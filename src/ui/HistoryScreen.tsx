@@ -10,8 +10,14 @@ import { causeLabel } from './labels';
 import { formatRecap } from '../game/recap';
 import { useResponsive } from './responsive';
 
-export function HistoryScreen({ games, onBack }: { games: Game[]; onBack: () => void }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+export function HistoryScreen({ games, initialOpenId, onBack }: { games: Game[]; initialOpenId?: string; onBack: () => void }) {
+  const requestedOpenId = initialOpenId && games.some(game => game.id === initialOpenId) ? initialOpenId : null;
+  const [selection, setSelection] = useState<{ source?: string; openId: string | null }>(() => ({ source: initialOpenId, openId: requestedOpenId }));
+  if (selection.source !== initialOpenId) {
+    setSelection({ source: initialOpenId, openId: requestedOpenId });
+  }
+  const openId = selection.openId;
+  const setOpenId = (gameId: string | null) => setSelection(current => ({ ...current, openId: gameId }));
   const [shareError, setShareError] = useState('');
   const responsive = useResponsive();
   const open = games.find(game => game.id === openId) ?? null;

@@ -4,10 +4,13 @@ import { validateCounts } from './engine';
 import { validateFlow } from './flow';
 import { isRole } from './roles';
 import { isSetupMemory, normalizeSetupMemory, type SetupMemory } from './setup-memory';
+import { isValidSpeechSeconds, validateSpeechDurations } from './speech';
 import { validateTableRules } from './table-rules';
+import { isHostPinCredential, type HostPinCredential } from './host-pin';
 import type { Role, Rules } from './types';
 
 export type HostingMode = 'standard' | 'quick' | 'custom';
+export type HostTextSize = 'standard' | 'large' | 'xlarge';
 
 export type HostingProfile = {
   id: string;
@@ -23,6 +26,10 @@ export type HostPreferences = {
   hostingMode: HostingMode;
   profiles: HostingProfile[];
   selectedProfileId?: string;
+  /** Host reading size is a device preference, not part of a saved table plan. */
+  textSize?: HostTextSize;
+  /** Optional salted PIN lock for the host side; the plaintext PIN is never stored. */
+  hostPin?: HostPinCredential;
   /** 上一局实际使用的完整设置；新局会优先带入并允许一键复用。 */
   lastSetup?: SetupMemory;
 };
@@ -35,6 +42,12 @@ export const HOSTING_MODES: { key: HostingMode; title: string; description: stri
   { key: 'custom', title: '我的方案', description: '保存自己的阵容和桌规，下次直接使用。', note: '适合不同线下玩法' },
 ];
 
+export const HOST_TEXT_SIZES: { key: HostTextSize; title: string; note: string; accessibilityLabel: string }[] = [
+  { key: 'standard', title: '标准', note: '保留更多操作空间', accessibilityLabel: '主持提词：标准' },
+  { key: 'large', title: '大字', note: '提升台词与结果可读性', accessibilityLabel: '主持提词：大字' },
+  { key: 'xlarge', title: '超大', note: '适合较远距离看屏', accessibilityLabel: '主持提词：超大' },
+];
+
 export function rulesForHostingMode(mode: HostingMode): Rules {
   if (mode === 'quick') return { ...DEFAULT_RULES, sheriff: false };
   return { ...DEFAULT_RULES };
@@ -42,6 +55,16 @@ export function rulesForHostingMode(mode: HostingMode): Rules {
 
 export function hostingModeLabel(mode: HostingMode): string {
   return HOSTING_MODES.find(item => item.key === mode)?.title ?? '标准流程';
+}
+
+export function hostTextSizeLabel(size: HostTextSize | undefined): string {
+  return HOST_TEXT_SIZES.find(item => item.key === (size ?? 'standard'))?.title ?? '标准';
+}
+
+/** Device lock credentials stay on the current installation and never enter portable backups. */
+export function portablePreferences(preferences: HostPreferences): HostPreferences {
+  const { hostPin: _hostPin, ...portable } = preferences;
+  return portable;
 }
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -64,7 +87,8 @@ export function isHostingProfile(value: unknown): value is HostingProfile {
     && oneOf(rules.guardSave, ['die', 'live'])
     && typeof rules.hunterPoison === 'boolean'
     && oneOf(rules.sheriffWeight, [1, 1.5])
-    && typeof rules.speechSeconds === 'number' && Number.isFinite(rules.speechSeconds) && rules.speechSeconds > 0
+    && isValidSpeechSeconds(rules.speechSeconds)
+    && validateSpeechDurations(rules.speechDurations)
     && validateTableRules(rules.table)
     && (rules.flow === undefined || validateFlow(rules.flow, countsFromRoles(counts)));
   if (!validRules) return false;
@@ -76,6 +100,12 @@ export function isHostingProfile(value: unknown): value is HostingProfile {
 export function normalizePreferences(value: unknown): HostPreferences {
   const input = object(value) ? value : {};
   const hostingMode: HostingMode = input.hostingMode === 'quick' || input.hostingMode === 'custom' ? input.hostingMode : 'standard';
+  const textSize: HostTextSize | undefined = input.textSize === 'large' || input.textSize === 'xlarge' || input.textSize === 'standard'
+    ? input.textSize
+    : undefined;
+  const hostPin = isHostPinCredential(input.hostPin)
+    ? { salt: input.hostPin.salt, hash: input.hostPin.hash }
+    : undefined;
   const profiles: HostingProfile[] = [];
   if (Array.isArray(input.profiles)) {
     for (const entry of input.profiles) {
@@ -104,6 +134,8 @@ export function normalizePreferences(value: unknown): HostPreferences {
     hostingMode,
     profiles,
     ...(selectedProfileId ? { selectedProfileId } : {}),
+    ...(textSize ? { textSize } : {}),
+    ...(hostPin ? { hostPin } : {}),
     ...(lastSetup ? { lastSetup } : {}),
   };
 }

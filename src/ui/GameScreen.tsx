@@ -6,6 +6,7 @@ import { canExplode } from '../game/role-behavior';
 import type { Action, Game, Stage } from '../game/types';
 import { Button, Divider, InlineError, PageTransition, SeatGrid, Sheet, TabBar, TopBar } from './kit';
 import { isNightStageId, stageInfo } from './labels';
+import { speechSecondsForGame } from '../game/speech';
 import { SeatsPage } from './game/SeatsPage';
 import { LogPage } from './game/LogPage';
 import { MorePage } from './game/MorePage';
@@ -16,6 +17,9 @@ import { styles } from './game/styles';
 import { emptyDraft, type Draft } from './game/draft';
 import { HostPage } from './game/HostPage';
 import { HostFooter } from './game/HostFooter';
+import type { HostTextSize } from '../game/preferences';
+import { hostTasks } from '../game/host-tasks';
+import { HostSupportSheet } from './game/HostSupportSheet';
 
 type Tab = 'host' | 'seats' | 'log' | 'more';
 
@@ -26,12 +30,13 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'more', label: '更多' },
 ];
 
-export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, onBack, onUndo, onRedo, onReset, onOpenReference, dispatch }: {
+export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, hostTextSize = 'standard', onBack, onUndo, onRedo, onReset, onOpenReference, dispatch }: {
   game: Game;
   canUndo: boolean;
   canRedo: boolean;
   error: string;
   selectionRevision: number;
+  hostTextSize?: HostTextSize;
   onBack: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -40,7 +45,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
   dispatch: (action: Action) => boolean;
 }) {
   const scope = `${game.day}:${game.stage}:${game.vote?.round ?? 0}:${game.pending[0]?.seat ?? ''}:${selectionRevision}`;
-  const speechClock = useSpeechClock(`${game.id}:${scope}`, game.rules.speechSeconds);
+  const speechClock = useSpeechClock(`${game.id}:${scope}`, speechSecondsForGame(game));
   const [tab, setTab] = useState<Tab>('host');
   const [showRoles, setShowRoles] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -49,6 +54,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
   const [finishReason, setFinishReason] = useState('');
   const [temporaryOpen, setTemporaryOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(scope, game));
   const [direction, setDirection] = useState(1);
@@ -62,6 +68,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
     setFinishOpen(false);
     setTemporaryOpen(false);
     setNotesOpen(false);
+    setSupportOpen(false);
   }
   useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [game.day, game.stage]);
 
@@ -84,6 +91,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
     if (dispatch(action)) patch({ selected: null, dance: [], poison: null, save: false, ...(action.type === 'ballot' || action.type === 'ballots' ? { voter: null, batchVoters: [] } : {}) });
   };
   const responsive = useResponsive();
+  const supportTaskCount = hostTasks(game.players.map(player => player.role)).length;
   const hostPage = (
     <HostPage
       game={game}
@@ -96,7 +104,10 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
       error={error}
       activeVoter={activeVoter}
       speechClock={speechClock}
+      hostTextSize={hostTextSize}
+      supportTaskCount={supportTaskCount}
       onOpenTools={() => setToolsOpen(true)}
+      onOpenSupport={() => setSupportOpen(true)}
       onGoSeats={() => changeTab('seats')}
       onGoLog={() => changeTab('log')}
       onTemporarySpeech={() => { speechClock.select(null); setTemporaryOpen(true); }}
@@ -142,12 +153,14 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
             game={game}
             canUndo={canUndo}
             canRedo={canRedo}
+            supportTaskCount={supportTaskCount}
             onUndo={onUndo}
             onRedo={onRedo}
             onFinish={() => setFinishOpen(true)}
             onReset={onReset}
             onOpenReference={onOpenReference}
             onOpenTools={() => setToolsOpen(true)}
+            onOpenSupport={() => setSupportOpen(true)}
             onTemporarySpeech={() => { speechClock.select(null); setTemporaryOpen(true); }}
             onNote={() => setNotesOpen(true)}
           />
@@ -158,6 +171,7 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
       <TabBar tabs={TABS.map(item => ({ ...item, hint: item.key === 'seats' ? `${alive(game).length}` : item.key === 'log' ? `${game.events.length}` : undefined }))} value={tab} onChange={changeTab} />
 
       <TemporarySpeech game={game} visible={temporaryOpen} onClose={() => setTemporaryOpen(false)} />
+      <HostSupportSheet game={game} visible={supportOpen} onClose={() => setSupportOpen(false)} dispatch={dispatch} />
       <Sheet visible={notesOpen} onClose={() => setNotesOpen(false)} title="现场备忘" subtitle="只记在主持记录里，不推进流程、不对玩家播报" footer={<Button title="保存备忘" disabled={!noteText.trim()} onPress={() => { if (dispatch({ type: 'note', text: noteText })) { setNoteText(''); setNotesOpen(false); } }} />}>
         <Text style={type.footnote}>可记录特殊技能剩余次数、附加能力、临时约定或裁定理由。涉及玩家时请写明座位号。</Text>
         <TextInput accessibilityLabel="现场备忘内容" value={noteText} onChangeText={setNoteText} multiline maxLength={1200} placeholder="例如：7 号获得商人授予的查验能力，尚未使用" placeholderTextColor={colors.textTertiary} style={[styles.input, styles.noteInput]} />
@@ -183,7 +197,8 @@ export function GameScreen({ game, canUndo, canRedo, error, selectionRevision, o
       </Sheet>
 
       <Sheet visible={finishOpen} onClose={() => setFinishOpen(false)} title="裁定结束本局" subtitle="用于提前结束或规则无法继续的情况"
-        footer={<Button title="确认结束" variant="danger" disabled={finishReason.trim().length < 2} onPress={() => { if (dispatch({ type: 'finish', winner: finishWinner, reason: finishReason })) setFinishOpen(false); }} />}>
+        footer={<Button title={game.pending.length ? `放弃 ${game.pending.length} 项待办并结束` : '确认结束'} variant="danger" disabled={finishReason.trim().length < 2} onPress={() => { if (dispatch({ type: 'finish', winner: finishWinner, reason: finishReason, discardPending: game.pending.length > 0 })) setFinishOpen(false); }} />}>
+        {game.pending.length ? <InlineError>仍有 {game.pending.length} 项遗言、出局技能或警徽待处理。现在结束会明确放弃这些待办，请确认不是误触。</InlineError> : null}
         <View style={styles.choiceGroup}>
           {([['好人胜', 'good'], ['狼人胜', 'wolf'], ['第三方胜', 'third'], ['平局', 'draw']] as const).map(([label, value]) => (
             <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: finishWinner === value }} accessibilityLabel={label} onPress={() => setFinishWinner(value)} style={[styles.choice, finishWinner === value && styles.choiceActive]}>

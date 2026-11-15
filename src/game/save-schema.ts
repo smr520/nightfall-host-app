@@ -3,7 +3,9 @@ import { DAWN_CAUSES, resolveNightOrder, validateFlow } from './flow';
 import { STAGES } from './config';
 import { getNightAnnouncement, nightDeaths } from './engine';
 import { isRole } from './roles';
+import { isValidSpeechSeconds, validateSpeechDurations } from './speech';
 import { validateTableRules } from './table-rules';
+import { hasValidGameInvariants } from './save-invariants';
 import type { Game, NightCall, Role, Session } from './types';
 
 type RecordValue = Record<string, unknown>;
@@ -15,7 +17,7 @@ const optionalText = (v: unknown) => v === undefined || typeof v === 'string';
 const oneOf = (v: unknown, options: string[]) => typeof v === 'string' && options.includes(v);
 const causes = ['knife', 'poison', 'exile', 'shot', 'explode', 'ruling', 'link', 'dance', 'hunt', 'check', 'dream', 'demon-hunt'];
 const fixedStages = Object.keys(STAGES);
-const pendingKinds = ['hunter', 'shot', 'link', 'badge', 'heir'];
+const pendingKinds = ['last-words', 'hunter', 'shot', 'link', 'badge', 'heir'];
 const isNightCall = (v: unknown): v is NightCall => v === 'wolves' || isRole(v);
 
 function isValidGameShape(v: unknown, schema: 1 | 2): v is RecordValue & Game {
@@ -30,7 +32,7 @@ function isValidGameShape(v: unknown, schema: 1 | 2): v is RecordValue & Game {
   const seat = (n: unknown) => integer(n) && seats.has(n);
   const nullableSeat = (n: unknown) => n === null || seat(n);
   const seatList = (list: unknown): list is number[] => Array.isArray(list) && !list.some(item => !seat(item)) && new Set(list).size === list.length;
-  if (!object(v.rules) || !bool(v.rules.sheriff) || (v.rules.sheriffTiming !== undefined && !oneOf(v.rules.sheriffTiming, ['before-announcement', 'after-announcement'])) || !oneOf(v.rules.win, ['edge', 'all']) || !oneOf(v.rules.selfSave, ['never', 'first', 'always']) || !oneOf(v.rules.guardSave, ['die', 'live']) || !bool(v.rules.doubleMedicine) || !bool(v.rules.hunterPoison) || ![1, 1.5].includes(v.rules.sheriffWeight as number) || !finite(v.rules.speechSeconds) || v.rules.speechSeconds <= 0 || !validateTableRules(v.rules.table) || (v.rules.flow !== undefined && !validateFlow(v.rules.flow))) return false;
+  if (!object(v.rules) || !bool(v.rules.sheriff) || (v.rules.sheriffTiming !== undefined && !oneOf(v.rules.sheriffTiming, ['before-announcement', 'after-announcement'])) || !oneOf(v.rules.win, ['edge', 'all']) || !oneOf(v.rules.selfSave, ['never', 'first', 'always']) || !oneOf(v.rules.guardSave, ['die', 'live']) || !bool(v.rules.doubleMedicine) || !bool(v.rules.hunterPoison) || ![1, 1.5].includes(v.rules.sheriffWeight as number) || !isValidSpeechSeconds(v.rules.speechSeconds) || !validateSpeechDurations(v.rules.speechDurations) || !validateTableRules(v.rules.table) || (v.rules.flow !== undefined && !validateFlow(v.rules.flow))) return false;
   if (!object(v.night) || !['guard', 'knife', 'inspect', 'poison'].every(key => nullableSeat((v.night as RecordValue)[key])) || !bool(v.night.save)) return false;
   if ((v.night as RecordValue).checkDeaths !== undefined && !seatList((v.night as RecordValue).checkDeaths)) return false;
   if (schema === 2) {
@@ -84,12 +86,16 @@ function isValidGameShape(v: unknown, schema: 1 | 2): v is RecordValue & Game {
 }
 
 export function isValidGame(v: unknown): v is Game {
-  return isValidGameShape(v, 2);
+  return isValidGameShape(v, 2) && hasValidGameInvariants(v);
 }
 
 /** v1 → v2：补夜间行动序列与行动记录；未知结构仍然拒绝 */
 export function migrateGame(value: unknown): Game {
-  if (isValidGame(value)) return repair(JSON.parse(JSON.stringify(value)) as Game);
+  if (isValidGameShape(value, 2)) {
+    const repaired = repair(JSON.parse(JSON.stringify(value)) as Game);
+    if (!isValidGame(repaired)) throw new Error('存档迁移后仍存在不一致状态，需要人工恢复');
+    return repaired;
+  }
   if (!isValidGameShape(value, 1)) throw new Error('存档结构不兼容或损坏');
   const legacy = JSON.parse(JSON.stringify(value)) as Game;
   const counts = emptyCounts();
@@ -102,7 +108,9 @@ export function migrateGame(value: unknown): Game {
   };
   if (!game.nightCalls.length) throw new Error('存档角色构成无法重建夜间流程');
   if (!fixedStages.includes(game.stage) && !game.nightCalls.includes(game.stage as NightCall)) game.stage = game.nightCalls[0];
-  return repair(game);
+  const repaired = repair(game);
+  if (!isValidGame(repaired)) throw new Error('旧版存档迁移后仍存在不一致状态，需要人工恢复');
+  return repaired;
 }
 
 function repair(game: Game): Game {

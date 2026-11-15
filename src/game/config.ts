@@ -1,5 +1,7 @@
 import { BOARD_LIBRARY, type Board } from './boards';
 import { ROLES, ROLE_IDS } from './roles';
+import { speechDurationsSummary, speechSecondsForRules } from './speech';
+import { hasLastWordsPolicy, lastWordsPolicyLabels } from './last-words';
 import type { Role, Rules } from './types';
 import { tableRules } from './table-rules';
 
@@ -18,7 +20,7 @@ export const BOARDS: Board[] = BOARD_LIBRARY;
 export type StageInfo = { title: string; script: string; help: string; short: string };
 
 type FixedStage = 'dawn' | 'dawn-announcement' | 'sheriff-signup' | 'sheriff-vote'
-  | 'discussion' | 'exile-vote' | 'hunter' | 'badge' | 'shot' | 'link' | 'heir' | 'ended';
+  | 'last-words' | 'discussion' | 'exile-vote' | 'hunter' | 'badge' | 'shot' | 'link' | 'heir' | 'ended';
 
 export const STAGES: Record<FixedStage, StageInfo> = {
   dawn: {
@@ -30,6 +32,12 @@ export const STAGES: Record<FixedStage, StageInfo> = {
     title: '公布昨夜结果', short: '公布',
     script: '天亮了。请所有玩家睁眼。昨夜的结果是……',
     help: '确认公开播报内容后再念给玩家；这里不显示死亡原因。',
+  },
+  'last-words': {
+    title: '出局遗言',
+    short: '遗言',
+    script: '请按赛前约定处理出局玩家的遗言。其他玩家请保持安静。',
+    help: '逐人完成或放弃遗言；队列结束后再处理出局技能、警徽和胜负。',
   },
   'sheriff-signup': {
     title: '警长竞选', short: '上警',
@@ -85,6 +93,13 @@ export const STAGES: Record<FixedStage, StageInfo> = {
 
 export const FIXED_STAGE_IDS = Object.keys(STAGES) as FixedStage[];
 
+function lastWordsPolicySummary(rules: Rules): string | null {
+  const policy = rules.flow?.lastWords;
+  if (!policy) return null;
+  const enabled = lastWordsPolicyLabels(rules);
+  return enabled.length ? `遗言：${enabled.join('、')}` : '遗言：全部关闭';
+}
+
 export function ruleSummary(r: Rules, roles?: Role[]): string[] {
   const has = (role: Role) => roles === undefined || roles.includes(role);
   const table = tableRules(r);
@@ -94,6 +109,7 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
     has('hunter') ? has('witch') ? `猎人被毒${r.hunterPoison ? '可开枪' : '不能开枪'}` : '猎人出局可开枪带走一名玩家' : '',
     has('idiot') ? '白痴翻牌免放逐、失去投票权' : '',
   ].filter(Boolean);
+  const lastWords = lastWordsPolicySummary(r);
   return [
     r.sheriff ? `上警 · 警长 ${r.sheriffWeight} 票` : '不上警',
     r.win === 'edge' ? '屠边：狼全灭好人胜；民或神全灭狼人胜' : '屠城：狼全灭好人胜；好人全灭狼人胜',
@@ -104,6 +120,8 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
     r.sheriff ? `首日顺序：${r.sheriffTiming === 'after-announcement' ? '先公布死亡，再竞选' : '先竞选，再公布死亡'}；死亡技能、警徽处理后判胜负` : '首日无警长竞选，确认夜间结果后进入白天',
     ...(r.sheriff ? [`警长平票：${table.sheriffTie === 'pk' ? 'PK 一轮，再平票则警徽流失' : '不 PK，警徽流失'}`] : []),
     `放逐平票：${table.exileTie === 'pk' ? 'PK 一轮，再平票则无人出局' : '不 PK，无人出局'}`,
+    ...(lastWords ? [lastWords] : []),
+    ...(r.speechDurations ? [`分阶段计时：${speechDurationsSummary(r)}`] : []),
     `已出局角色：${r.flow?.keepDeadCalls ? '保留夜间口播，不录入行动' : '跳过后续夜间环节'}`,
     ...(r.flow?.manualVictory ? ['特殊胜负或未自动处理技能：由主持人核对后，在“更多”中手动确认获胜阵营'] : []),
     ...(table.notes ? [`本桌补充约定（主持人执行）：${table.notes}`] : []),
@@ -112,5 +130,12 @@ export function ruleSummary(r: Rules, roles?: Role[]): string[] {
 
 /** A public pregame script contains table rules, never the seat-to-role mapping. */
 export function openingRulesScript(rules: Rules, roles: Role[]): string {
-  return `各位玩家，开局前先确认今晚的桌规。\n\n${ruleSummary(rules, roles).map(line => `${line}。`).join('\n\n')}\n\n每位玩家发言 ${rules.speechSeconds} 秒。补充约定由主持人按约定执行。请现在提出规则疑问，确认后开始游戏。`;
+  const table = tableRules(rules);
+  const timing = [`白天正式发言按 ${speechSecondsForRules(rules, 'discussion')} 秒`];
+  if (rules.sheriff) timing.push(`警上按 ${speechSecondsForRules(rules, 'sheriff')} 秒`);
+  if (rules.sheriff && table.sheriffTie === 'pk' || table.exileTie === 'pk') {
+    timing.push(`PK 按 ${speechSecondsForRules(rules, 'pk')} 秒`);
+  }
+  if (hasLastWordsPolicy(rules)) timing.push(`遗言按 ${speechSecondsForRules(rules, 'lastWords')} 秒`);
+  return `各位玩家，开局前先确认今晚的桌规。\n\n${ruleSummary(rules, roles).map(line => `${line}。`).join('\n\n')}\n\n${timing.join('、')}计时。补充约定由主持人按约定执行。请现在提出规则疑问，确认后开始游戏。`;
 }

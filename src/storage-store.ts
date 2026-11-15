@@ -2,7 +2,8 @@ import { createPersistenceQueue } from './storage-queue';
 import { decodeSession, migrateGame } from './game/save-schema';
 import { createBackup, EMPTY_CURRENT_SESSION, parseBackup } from './game/backup';
 import type { Game, Session } from './game/types';
-import { normalizePreferences, type HostingProfile } from './game/preferences';
+import { normalizePreferences, type HostingProfile, type HostTextSize } from './game/preferences';
+import { isHostPinCredential, type HostPinCredential } from './game/host-pin';
 import { isSetupMemory, type SetupMemory } from './game/setup-memory';
 
 export interface KeyValueStorage {
@@ -16,7 +17,7 @@ export const STORAGE_KEYS = {
 };
 
 
-export type StoredPreferences = { hostingMode?: string; profiles?: HostingProfile[]; selectedProfileId?: string; lastSetup?: SetupMemory };
+export type StoredPreferences = { hostingMode?: string; profiles?: HostingProfile[]; selectedProfileId?: string; textSize?: HostTextSize; hostPin?: HostPinCredential; lastSetup?: SetupMemory };
 export type AppRole = 'host' | 'player';
 export const isAppRole = (value: unknown): value is AppRole => value === 'host' || value === 'player';
 
@@ -287,6 +288,7 @@ export function createGameStorage(kv: KeyValueStorage) {
         ...parsed.preferences,
         profiles: mergedProfiles,
         ...(selectedProfileId ? { selectedProfileId } : {}),
+        ...(localPreferences.hostPin ? { hostPin: localPreferences.hostPin } : {}),
         ...(lastSetup ? { lastSetup } : {}),
       });
       let recoveryRecords: unknown[] = [];
@@ -330,6 +332,8 @@ export function createGameStorage(kv: KeyValueStorage) {
     const damaged = !validObject
       || (input.hostingMode !== undefined && !['standard', 'quick', 'custom'].includes(input.hostingMode as string))
       || (input.profiles !== undefined && (!Array.isArray(input.profiles) || input.profiles.length !== normalized.profiles.length))
+      || (input.textSize !== undefined && !['standard', 'large', 'xlarge'].includes(input.textSize as string))
+      || (input.hostPin !== undefined && !isHostPinCredential(input.hostPin))
       || (input.lastSetup !== undefined && !isSetupMemory(input.lastSetup));
     if (damaged) {
       await backup(STORAGE_KEYS.preferences, raw, '隔离损坏的个性化方案');

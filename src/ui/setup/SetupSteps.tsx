@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { boardIntroduction } from '../../game/board-reference';
+import { boardSupport } from '../../game/board-support';
 import type { Board } from '../../game/boards';
 import { isIdentityCard } from '../../game/role-catalog';
 import { ROLE_REFERENCE } from '../../game/role-reference';
@@ -16,6 +17,7 @@ import { useResponsive } from '../responsive';
 import { colors, type } from '../../theme';
 import { boardTagLabel } from './board-filter';
 import { ChoiceRow, ToggleRow } from './Controls';
+import { BoardSupportBadge } from './BoardIntroduction';
 import { styles } from './styles';
 import type { SetupPlayer, TreasureDeal } from './types';
 
@@ -31,6 +33,7 @@ export function BoardStep({ editingProfile, board, total, name, players, error, 
   onPreviewBoard: () => void;
   onEditLineup: () => void;
 }) {
+  const support = boardSupport(board);
   return (
     <>
       <View style={styles.stepHeading}><Text accessibilityRole="header" style={type.title}>{editingProfile ? '设置常用阵容' : '今晚打哪个板子？'}</Text><Text style={type.footnote}>选好阵容，再确认本桌规则。</Text></View>
@@ -43,9 +46,11 @@ export function BoardStep({ editingProfile, board, total, name, players, error, 
           </View>
           <View style={styles.playerTotal}><Text style={styles.playerTotalValue}>{total}</Text><Text style={type.caption}>人</Text></View>
         </View>
+        <BoardSupportBadge board={board} withSummary />
         <View style={styles.boardRoster}>{boardRoleList(board.roles).map(item => <View key={item.name} style={styles.boardRosterItem}><Text style={[styles.rosterName, item.wolf && styles.rosterWolf]}>{item.name}</Text><Text style={styles.rosterCount}>×{item.count}</Text></View>)}</View>
         {board.deck ? <Text style={type.footnote}>以上是 {Object.values(board.counts).reduce((a, b) => a + b, 0)} 张完整牌池；已自动洗牌，{total} 张入座、{Object.values(board.counts).reduce((a, b) => a + b, 0) - total} 张扣作底牌。</Text> : null}
         <Text style={type.footnote}>{boardIntroduction(board).overview}</Text>
+        {support.level !== 'verified' ? <Text style={type.footnote}>{support.summary} 请先查看主持处理项。</Text> : null}
         <View style={styles.boardChange}><Text style={styles.changeHint}>点击更换板子</Text><Icon name="chevron-right" size={18} color={colors.textSecondary} /></View>
       </MotionPressable>
       <View style={styles.boardLinks}><Icon name="book" size={19} color={colors.textSecondary} /><View style={styles.flex}><Button title="查看当前板子介绍" variant="ghost" small onPress={onPreviewBoard} /></View></View>

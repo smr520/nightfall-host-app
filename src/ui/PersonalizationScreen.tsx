@@ -1,21 +1,24 @@
-import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, spacing, type } from '../theme';
 import { ROLES } from '../game/roles';
 import { tableRules } from '../game/table-rules';
-import { Button, Chip, Divider, InlineError, TopBar } from './kit';
+import { Button, Chip, Divider, InlineError, Sheet, TopBar } from './kit';
 import { Icon } from './Icon';
 import { MotionPressable as Pressable } from './motion';
-import { HOSTING_MODES, type HostingMode, type HostingProfile } from './preferences';
+import { HOSTING_MODES, HOST_TEXT_SIZES, type HostingMode, type HostingProfile, type HostTextSize } from './preferences';
 import { useResponsive } from './responsive';
+import { isValidHostPin, MAX_HOST_PIN_LENGTH, MIN_HOST_PIN_LENGTH } from '../game/host-pin';
 
 type Props = {
   profiles: HostingProfile[];
   selectedProfileId?: string;
   hostingMode: HostingMode;
+  textSize?: HostTextSize;
   disabled?: boolean;
   error?: string;
   onHostingModeChange: (mode: HostingMode) => void;
+  onTextSizeChange?: (size: HostTextSize) => void;
   onCreate: () => void;
   onEdit: (profile: HostingProfile) => void;
   onDuplicate?: (profile: HostingProfile) => void;
@@ -23,16 +26,60 @@ type Props = {
   onDelete: (id: string) => void;
   onRetry?: () => void;
   onBackup?: () => void;
+  hostPinEnabled?: boolean;
+  onSetHostPin?: (pin: string) => Promise<void>;
+  onClearHostPin?: () => Promise<void>;
+  onLockHost?: () => void;
 };
 
-export function PersonalizationScreen({ profiles, selectedProfileId, hostingMode, disabled, error, onHostingModeChange, onCreate, onEdit, onDuplicate, onSelect, onDelete, onRetry, onBackup }: Props) {
+export function PersonalizationScreen({ profiles, selectedProfileId, hostingMode, textSize = 'standard', disabled, error, onHostingModeChange, onTextSizeChange, onCreate, onEdit, onDuplicate, onSelect, onDelete, onRetry, onBackup, hostPinEnabled, onSetHostPin, onClearHostPin, onLockHost }: Props) {
   const atLimit = profiles.length >= 20;
   const responsive = useResponsive();
   const selectedProfile = profiles.find(profile => profile.id === selectedProfileId);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
   const confirmDelete = (profile: HostingProfile) => {
     Alert.alert(`删除“${profile.name}”？`, '删除后无法恢复这份方案，正在主持的对局不受影响。', [
       { text: '取消', style: 'cancel' },
       { text: '删除方案', style: 'destructive', onPress: () => onDelete(profile.id) },
+    ]);
+  };
+  const savePin = async () => {
+    if (!onSetHostPin || pinBusy) return;
+    if (!isValidHostPin(pin)) {
+      setPinError(`PIN 必须是 ${MIN_HOST_PIN_LENGTH}–${MAX_HOST_PIN_LENGTH} 位数字`);
+      return;
+    }
+    if (pin !== pinConfirm) {
+      setPinError('两次输入的 PIN 不一致');
+      return;
+    }
+    setPinBusy(true);
+    setPinError('');
+    try {
+      await onSetHostPin(pin);
+      setPin('');
+      setPinConfirm('');
+      setPinOpen(false);
+      Alert.alert('主持端锁已开启', '下次进入主持端时需要输入 PIN。请牢记，忘记后无法从界面绕过。');
+    } catch {
+      setPinError('无法保存主持 PIN，请检查存储空间后重试。');
+    } finally {
+      setPinBusy(false);
+    }
+  };
+  const clearPin = () => {
+    setPinOpen(false);
+    Alert.alert('关闭主持端锁？', '关闭后，任何拿到这台手机的人都可以直接进入主持数据。', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '关闭锁',
+        style: 'destructive',
+        onPress: () => { void onClearHostPin?.().catch(() => Alert.alert('关闭失败', '主持端锁未被移除，请检查存储空间后重试。')); },
+      },
     ]);
   };
 
@@ -151,10 +198,86 @@ export function PersonalizationScreen({ profiles, selectedProfileId, hostingMode
         <Text style={styles.sectionLabel}>本机设置</Text>
         <View style={styles.deviceGroup}>
           {onBackup ? <Pressable accessibilityRole="button" accessibilityLabel="本机数据：备份与恢复" onPress={onBackup} style={({ pressed }) => [styles.backupRow, pressed && styles.pressed]}><Icon name="archive" size={20} color={colors.textSecondary} /><View style={styles.flex}><Text style={type.callout}>备份与恢复</Text><Text style={type.footnote}>导出方案、对局和复盘</Text></View><Icon name="chevron-right" size={18} color={colors.textTertiary} /></Pressable> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hostPinEnabled ? '主持端锁：已开启' : '主持端锁：未开启'}
+            onPress={() => setPinOpen(true)}
+            style={({ pressed }) => [styles.backupRow, styles.lockRow, pressed && styles.pressed]}
+          >
+            <Icon name="shield" size={20} color={colors.textSecondary} />
+            <View style={styles.flex}>
+              <Text style={type.callout}>主持端锁</Text>
+              <Text style={type.footnote}>{hostPinEnabled ? '已开启 · 进入主持端需要 PIN' : '可选 · 防止玩家进入身份数据'}</Text>
+            </View>
+            <Text style={styles.rowAction}>{hostPinEnabled ? '管理' : '设置'}</Text>
+          </Pressable>
           <View style={styles.appearanceRow}><Text style={type.callout}>界面外观</Text><Text style={type.footnote}>白色</Text></View>
+          <View style={styles.readingSection}>
+            <View style={styles.readingHead}>
+              <Text style={type.callout}>主持提词字号</Text>
+              <Text style={type.footnote}>只放大主持台词、结果和关键提示</Text>
+            </View>
+            <View style={styles.readingOptions}>
+              {HOST_TEXT_SIZES.map(option => {
+                const selected = option.key === textSize;
+                return (
+                  <Pressable
+                    key={option.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={option.accessibilityLabel}
+                    accessibilityState={{ selected, disabled: !!disabled || !onTextSizeChange }}
+                    disabled={!!disabled || !onTextSizeChange}
+                    onPress={() => onTextSizeChange?.(option.key)}
+                    style={({ pressed }) => [styles.readingOption, selected && styles.readingOptionActive, (disabled || !onTextSizeChange) && styles.disabled, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.readingOptionTitle, selected && styles.readingOptionTitleActive]}>{option.title}</Text>
+                    <Text style={styles.readingOptionNote}>{option.note}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
       </View>
       </ScrollView>
+      <Sheet visible={pinOpen} onClose={() => { if (!pinBusy) setPinOpen(false); }} title="主持端锁" subtitle="PIN 只以加盐哈希保存在本机">
+        {hostPinEnabled ? (
+          <View style={styles.pinEnabled}>
+            <Text style={type.body}>主持端锁已开启。切换到玩家模式不需要 PIN；切回主持或重新打开应用时会被拦截。</Text>
+            <Button title="立即锁定主持端" variant="secondary" onPress={() => { setPinOpen(false); onLockHost?.(); }} />
+            <Button title="关闭主持端锁" variant="danger" onPress={clearPin} />
+          </View>
+        ) : (
+          <>
+            <Text style={type.footnote}>设置后，主持人、身份、夜间目标和本机对局会受 PIN 保护。玩家模式不会读取这些数据。</Text>
+            <TextInput
+              accessibilityLabel="设置主持 PIN"
+              value={pin}
+              onChangeText={value => setPin(value.replace(/\D/g, '').slice(0, MAX_HOST_PIN_LENGTH))}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={MAX_HOST_PIN_LENGTH}
+              placeholder={`输入 ${MIN_HOST_PIN_LENGTH}–${MAX_HOST_PIN_LENGTH} 位数字`}
+              placeholderTextColor={colors.textTertiary}
+              style={styles.pinInput}
+            />
+            <TextInput
+              accessibilityLabel="再次输入主持 PIN"
+              value={pinConfirm}
+              onChangeText={value => setPinConfirm(value.replace(/\D/g, '').slice(0, MAX_HOST_PIN_LENGTH))}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={MAX_HOST_PIN_LENGTH}
+              placeholder="再次输入"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.pinInput}
+            />
+            {pinError ? <InlineError>{pinError}</InlineError> : null}
+            <Button title={pinBusy ? '正在保存…' : '开启主持端锁'} onPress={() => { void savePin(); }} disabled={pinBusy || !onSetHostPin} />
+            <Text style={styles.pinWarning}>忘记 PIN 后无法从界面绕过。设备上的对局仍会保留，但可能需要清除应用数据才能重新进入主持端。</Text>
+          </>
+        )}
+      </Sheet>
     </View>
   );
 }
@@ -200,7 +323,20 @@ const styles = StyleSheet.create({
   deviceSection: { gap: spacing.md, marginTop: spacing.lg },
   deviceGroup: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.lg },
   backupRow: { flexDirection: 'row', alignItems: 'center', minHeight: 78, gap: spacing.md, paddingVertical: spacing.md },
+  lockRow: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
   appearanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 58, paddingVertical: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
+  readingSection: { gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
+  readingHead: { gap: spacing.xs },
+  readingOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  readingOption: { flexGrow: 1, flexBasis: 120, minHeight: 72, justifyContent: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  readingOptionActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  readingOptionTitle: { ...type.callout, fontWeight: '600' },
+  readingOptionTitleActive: { color: colors.accentStrong },
+  readingOptionNote: { ...type.caption, fontWeight: '400', lineHeight: 17 },
+  rowAction: { ...type.callout, color: colors.accent, fontWeight: '600' },
+  pinEnabled: { gap: spacing.md },
+  pinInput: { minHeight: 56, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: spacing.md, fontSize: 20, letterSpacing: 4, textAlign: 'center' },
+  pinWarning: { ...type.footnote, color: colors.textTertiary },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.7 },
 });

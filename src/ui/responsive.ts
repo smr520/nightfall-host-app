@@ -17,10 +17,10 @@ export function shouldSplitHost(width: number, tab: string): boolean {
   return width >= BREAKPOINTS.expanded && tab === 'host';
 }
 
-/** 系统字体放大时限制上限，避免座位格和按钮被撑破。 */
+/** Keep computed seat geometry finite while supporting common Android accessibility sizes. */
 export function clampFontScale(value: number): number {
   if (!Number.isFinite(value) || value <= 0) return 1;
-  return Math.min(1.35, Math.max(0.9, value));
+  return Math.min(2, Math.max(0.8, value));
 }
 
 export type Responsive = {

@@ -59,7 +59,7 @@ describe('hosting process reference', () => {
     const afterHunter = after.players.find(player => player.role === 'hunter')!;
     after.night.knife = afterHunter.seat;
     after.rules.sheriffTiming = 'after-announcement';
-    expect(hostingProgress(after).next).toBe('公布结果 → 技能与警徽 → 核对胜负 → 竞选');
+    expect(hostingProgress(after).next).toBe('公布结果 → 出局技能与警徽 → 核对胜负 → 竞选');
     result = applyAction(after, { type: 'dawn' });
     expect(result.stage).toBe('hunter');
     expect(result.players.find(player => player.seat === afterHunter.seat)?.alive).toBe(false);

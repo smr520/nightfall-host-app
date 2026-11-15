@@ -24,6 +24,8 @@ import { RoleGate } from './src/ui/RoleGate';
 import { Button, PageTransition, TabBar } from './src/ui/kit';
 import { Icon } from './src/ui/Icon';
 import { MotionProvider } from './src/ui/motion';
+import { ErrorBoundary } from './src/ui/ErrorBoundary';
+import { HostLockGate } from './src/ui/HostLockGate';
 import { rulesForHostingMode } from './src/game/preferences';
 import { gameFromSetup, refreshSetupMemory, setupMemoryFromGame, type SetupMemory } from './src/game/setup-memory';
 import { useHostingPreferences } from './src/hooks/useHostingPreferences';
@@ -38,6 +40,7 @@ const MAIN_TABS: { key: MainTab; label: string }[] = [
 
 function AppContent() {
   const [screen, setScreen] = useState<Screen>('home');
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string>();
   const [navigation, setNavigation] = useState({ screen, direction: 1 });
   if (navigation.screen !== screen) {
     const order: Screen[] = ['home', 'skills', 'personalization', 'setup', 'profile-editor', 'game', 'history', 'backup'];
@@ -55,6 +58,8 @@ function AppContent() {
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number>();
+  const [hostUnlocked, setHostUnlocked] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [recoveryWarning, setRecoveryWarning] = useState('');
   const [sessionLoadFailed, setSessionLoadFailed] = useState(false);
@@ -63,7 +68,9 @@ function AppContent() {
   const {
     preferences, preferencesReadable, preferenceError, preferenceWarning, preferenceSaving,
     editingProfile, setEditingProfile, preferenceWritePending, loadPreferences,
-    hostingMode, selectedProfile, lastSetup, changeHostingMode, saveProfile, duplicateProfile, deleteProfile, selectProfile, rememberSetup,
+    hostingMode, selectedProfile, lastSetup, textSize, hostPin, changeHostingMode, changeTextSize,
+    setHostPin, clearHostPin, verifyHostPin,
+    saveProfile, duplicateProfile, deleteProfile, selectProfile, rememberSetup,
   } = useHostingPreferences();
   const [referenceContext, setReferenceContext] = useState<{ game?: Game; roles?: Role[]; rules?: Rules; initialRole?: Role } | null>(null);
   const saveVersion = useRef(0);
@@ -123,8 +130,13 @@ function AppContent() {
     setActionError('');
     setScreen(tab);
   };
+  const openHistory = (gameId?: string) => {
+    setSelectedHistoryId(gameId);
+    setScreen('history');
+  };
   const chooseRole = (role: AppRole) => {
     setAppRole(role);
+    setHostUnlocked(role === 'host' && !hostPin);
     setAppRoleError('');
     setActionError('');
     setScreen('home');
@@ -137,7 +149,9 @@ function AppContent() {
       next === 'player' ? '切换到玩家模式？' : '切换到主持模式？',
       next === 'player'
         ? '当前主持对局会保留，随时可以切回来继续；玩家笔记只保存在本机。'
-        : '将打开本机的主持数据，请确认你是主持人。主持对局和玩家笔记分别保存，不会互相覆盖。',
+        : hostPin
+          ? '将打开本机的主持数据。需要输入主持人设置的 PIN。'
+          : '将打开本机的主持数据，请确认你是主持人。主持对局和玩家笔记分别保存，不会互相覆盖。',
       [
         { text: '取消', style: 'cancel' },
         { text: '切换', onPress: () => chooseRole(next) },
@@ -155,7 +169,10 @@ function AppContent() {
     savingRef.current = true;
     setSaving(true);
     void (retry ? retryPersistSession(next) : persistSession(next)).then(() => {
-      if (mounted.current && version === saveVersion.current) setSaveError('');
+      if (mounted.current && version === saveVersion.current) {
+        setSaveError('');
+        setLastSavedAt(Date.now());
+      }
     }).catch(() => {
       if (mounted.current && version === saveVersion.current) setSaveError('对局或复盘保存失败。请保持应用打开，检查存储空间后点“重试保存”；不要开始新局。');
     }).finally(() => {
@@ -272,6 +289,25 @@ function AppContent() {
     { text: '取消', style: 'cancel' },
     { text: '备份并清除', style: 'destructive', onPress: () => { void clearDamagedSession().then(() => { setSaveError(''); retryLoad(); }).catch(() => setLoadError('备份失败，原始记录未清除。请释放存储空间后重试；新建仍已锁定。')); } },
   ]);
+  const hostLocked = appRole === 'host' && !!hostPin && !hostUnlocked;
+  const unlockHost = async (pin: string) => {
+    const valid = await verifyHostPin(pin);
+    if (valid) setHostUnlocked(true);
+    return valid;
+  };
+  const saveHostPin = async (pin: string) => {
+    await setHostPin(pin);
+    setHostUnlocked(false);
+  };
+  const removeHostPin = async () => {
+    await clearHostPin();
+    setHostUnlocked(true);
+  };
+  const lockHostNow = () => {
+    setScreen('home');
+    setActionError('');
+    setHostUnlocked(false);
+  };
 
   if (loading) {
     return (
@@ -283,7 +319,7 @@ function AppContent() {
   }
 
   const hostMessage = [loadError, saveError, recoveryWarning, preferenceWarning, appRoleError].filter(Boolean).join('\n');
-  const banner = appRole === 'host' ? hostMessage : appRole === 'player' ? appRoleError : '';
+  const banner = appRole === 'host' ? hostLocked ? '' : hostMessage : appRole === 'player' ? appRoleError : '';
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}>
@@ -303,10 +339,11 @@ function AppContent() {
             </View>
           ) : null}
           {appRole === 'host' && (saving || clearing) ? <Text style={styles.savingText}>{clearing ? '正在备份并移除本局，请稍候…' : '正在保存，请勿替换本局…'}</Text> : null}
-          <PageTransition pageKey={appRole === null ? 'role-gate' : appRole === 'player' ? 'player' : screen} direction={navigation.direction}>
+          <PageTransition pageKey={appRole === null ? 'role-gate' : appRole === 'player' ? 'player' : hostLocked ? 'host-locked' : screen} direction={navigation.direction}>
           {appRole === null ? <RoleGate onSelect={chooseRole} error={appRoleError || undefined} /> : null}
           {appRole === 'player' ? <PlayerScreen storage={playerNotebookStorage} onOpenReference={setReferenceContext} onSwitchRole={requestRoleSwitch} /> : null}
-          {appRole === 'host' ? <>
+          {appRole === 'host' && hostLocked ? <HostLockGate onUnlock={unlockHost} onSwitchRole={requestRoleSwitch} /> : null}
+          {appRole === 'host' && !hostLocked ? <>
           {screen === 'home' ? (
             <HomeScreen
               session={session}
@@ -315,12 +352,15 @@ function AppContent() {
               selectedProfile={selectedProfile}
               lastSetup={repeatableSetup}
               preferenceError={preferenceError}
+              saving={saving}
+              saveError={saveError}
+              lastSavedAt={lastSavedAt}
               onPersonalize={() => setScreen('personalization')}
               disabled={writeBlocked || !!saveError || saving || preferenceSaving}
               onNew={newGame}
               onRepeat={repeatableSetup ? () => repeatSetup(repeatableSetup) : undefined}
               onResume={() => setScreen('game')}
-              onHistory={() => setScreen('history')}
+              onHistory={openHistory}
               onUndo={undo}
               onSwitchRole={requestRoleSwitch}
             />
@@ -331,19 +371,25 @@ function AppContent() {
             profiles={preferences.profiles}
             selectedProfileId={preferences.selectedProfileId}
             hostingMode={hostingMode}
+            textSize={textSize}
             disabled={!preferencesReadable || preferenceSaving}
             error={preferenceError}
             onRetry={!preferencesReadable ? retryPreferences : undefined}
             onHostingModeChange={selectHostingMode}
+            onTextSizeChange={changeTextSize}
             onCreate={() => { setEditingProfile(undefined); setScreen('profile-editor'); }}
             onEdit={profile => { setEditingProfile(profile); setScreen('profile-editor'); }}
             onDuplicate={profile => { void duplicateProfile(profile.id).catch(error => setActionError(error instanceof Error ? error.message : '复制方案失败')); }}
             onBackup={() => setScreen('backup')}
             onSelect={selectProfile}
             onDelete={deleteProfile}
+            hostPinEnabled={!!hostPin}
+            onSetHostPin={saveHostPin}
+            onClearHostPin={removeHostPin}
+            onLockHost={lockHostNow}
           /> : null}
           {screen === 'profile-editor' ? <SetupScreen key={`profile-${editingProfile?.id ?? 'new'}`} mode="custom" initialProfile={editingProfile} initialRules={editingProfile ? { ...editingProfile.rules } : rulesForHostingMode('standard')} onBack={() => setScreen('personalization')} onStart={start} onSaveProfile={async draft => { await saveProfile(draft); setScreen('personalization'); }} onOpenReference={setReferenceContext} /> : null}
-          {screen === 'history' ? <HistoryScreen games={history} onBack={() => setScreen('home')} /> : null}
+          {screen === 'history' ? <HistoryScreen games={history} initialOpenId={selectedHistoryId} onBack={() => { setSelectedHistoryId(undefined); setScreen('home'); }} /> : null}
           {screen === 'backup' ? <DataBackupScreen
             hasActiveSession={!!session && session.current.stage !== 'ended'}
             currentSessionDamaged={sessionLoadFailed}
@@ -357,6 +403,7 @@ function AppContent() {
               key={session.current.id}
               game={session.current}
               selectionRevision={selectionRevision}
+              hostTextSize={textSize}
               canUndo={!writeBlocked && session.undo.length > 0}
               canRedo={!writeBlocked && session.redo.length > 0}
               error={actionError}
@@ -370,7 +417,7 @@ function AppContent() {
           ) : null}
           </> : null}
           </PageTransition>
-          {appRole === 'host' && MAIN_TABS.some(tab => tab.key === screen) ? <View testID="main-navigation"><TabBar tabs={MAIN_TABS} value={screen as MainTab} onChange={selectMainTab} disabled={screen === 'personalization' && preferenceSaving} /></View> : null}
+          {appRole === 'host' && !hostLocked && MAIN_TABS.some(tab => tab.key === screen) ? <View testID="main-navigation"><TabBar tabs={MAIN_TABS} value={screen as MainTab} onChange={selectMainTab} disabled={screen === 'personalization' && preferenceSaving} /></View> : null}
         </KeyboardAvoidingView>
         <ReferenceModal visible={referenceContext !== null} {...(referenceContext ?? {})} onClose={() => setReferenceContext(null)} />
       </SafeAreaView>
@@ -378,7 +425,20 @@ function AppContent() {
   );
 }
 
-export default function App() { return <MotionProvider><AppContent /></MotionProvider>; }
+export default function App() {
+  const exportPrivateData = async () => {
+    const message = await exportRawData();
+    await Share.share({
+      title: '夜幕原始存档（私密）',
+      message,
+    });
+  };
+  return (
+    <ErrorBoundary onExportRawData={exportPrivateData}>
+      <MotionProvider><AppContent /></MotionProvider>
+    </ErrorBoundary>
+  );
+}
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },

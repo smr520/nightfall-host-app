@@ -4,7 +4,10 @@ import { hostingSupport, withSupportDefaults } from '../src/game/support-policy'
 describe('concrete host-handled mechanics', () => {
   it('keeps normal hunter and wolf death-skill boards on their existing defaults', () => {
     const roles = ['wolf', 'villager', 'seer', 'witch', 'guard', 'hunter', 'wolf-king', 'wolf-beauty', 'white-wolf-king'] as const;
-    expect(hostingSupport(roles)).toEqual({ checks: [], manualDawn: false, manualVictory: false });
+    const support = hostingSupport(roles);
+    expect(support.checks.map(check => check.role)).toEqual(['hunter', 'wolf-king', 'wolf-beauty']);
+    expect(support.manualDawn).toBe(false);
+    expect(support.manualVictory).toBe(false);
     expect(withSupportDefaults(DEFAULT_RULES, roles)).toBe(DEFAULT_RULES);
   });
 

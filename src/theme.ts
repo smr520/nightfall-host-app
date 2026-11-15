@@ -10,7 +10,7 @@ export const colors = {
   lineSoft: '#EEEFEA',
   text: '#242522',
   textSecondary: '#666963',
-  textTertiary: '#777B73',
+  textTertiary: '#63675F',
   accent: '#292B28',
   accentStrong: '#151714',
   accentDim: '#EEEFEA',

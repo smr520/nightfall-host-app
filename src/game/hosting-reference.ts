@@ -3,12 +3,13 @@ import { callIsActive } from './engine';
 import { isNightStage } from './host-ui';
 import type { Game } from './types';
 import { tableRules } from './table-rules';
+import { hasLastWordsPolicy } from './last-words';
 
 export const HOSTING_STEPS: { id: string; title: string; description: string; checks: string[] }[] = [
   { id: 'prepare', title: '开局确认', description: '先统一阵容、桌规和座位，再进入第一夜。', checks: ['核对人数、角色与实际发出的身份牌。', '向全桌说明警长顺序、胜负条件、女巫用药和猎人限制。', '确认特殊角色采用的规则版本；图鉴介绍不替代本桌约定。'] },
   { id: 'night', title: '夜间行动', description: '按本局角色生成的行动顺序，逐个收集并确认操作。', checks: ['主持词可以念，刀口、身份和技能目标只供主持人核对。', '每步明确选择目标或空过；已出局角色可在赛前选择保留空唤醒口播，念完直接继续；仅首夜角色仍只在首夜行动。', '仅记录目标的特殊技能需要现场复核，不能把记录等同于自动结算。'] },
   { id: 'dawn', title: '天亮与首日竞选', description: '按开局桌规决定先竞选还是先公布昨夜结果。', checks: ['先核对私密预览，公开时只念出局座位，不念死因或查验结果。', '先竞选的桌规：完成竞选后再确认公布，未公布死者仍可参与竞选。', '先公布的桌规：先处理死亡技能、警徽和胜负，再由存活玩家竞选。'] },
-  { id: 'discussion', title: '白天发言', description: '现场确认发言顺序和本轮特殊技能，再进入放逐投票。', checks: ['由主持人或警长按桌规指定发言方向。', '白天发言可按座位计时；退水名单、遗言资格与遗言时机由现场主持，赛前写入补充约定。', '特殊结算使用人工裁定时填写理由，便于事后核对。'] },
+  { id: 'discussion', title: '白天发言', description: '现场确认发言顺序和本轮特殊技能，再进入放逐投票。', checks: ['由主持人或警长按桌规指定发言方向。', '白天发言可按座位计时；赛前开启的遗言策略命中后，软件会生成独立队列并逐座位处理。', '特殊结算使用人工裁定时填写理由，便于事后核对。'] },
   { id: 'vote', title: '逐人投票', description: '每名有投票权的玩家都记录目标或明确弃票，录齐后再计票。', checks: ['警长竞选由候选人以外的合资格玩家投票；警长加权仅用于放逐投票。', '警长与放逐的平票政策分别在赛前设置：PK 一轮或直接无人当选 / 无人出局。', 'PK 候选人不投本轮 PK；软件会按本轮资格显示投票名单。'] },
   { id: 'resolve', title: '技能与警徽', description: '先处理待结算的出局技能，再处理警徽，最后核对胜负。', checks: ['猎人是否被毒可开枪按本局开关执行；其余特殊触发条件须核对本桌版本。', '警徽只能交给存活且未翻牌白痴的玩家，也可以撕毁。', '仍有死亡技能或警徽待处理时，先完成队列，再进入下一环节。'] },
   { id: 'review', title: '结束与复盘', description: '确认胜方和结束原因后，再公开身份并查看完整时间线。', checks: ['普通胜负按屠边或屠城计算；特殊胜负由主持人核对。', '提前结束需写明原因。', '复盘含私密身份和夜间信息，分享前确认所有人已结束游戏。'] },
@@ -21,7 +22,7 @@ export const BASIC_RULES: { id: string; title: string; paragraphs: string[] }[] 
   { id: 'sheriff', title: '首日竞选与警徽', paragraphs: ['警长可以关闭。开启时可选“先竞选后公布死亡”或“先公布死亡后竞选”；后者先处理死亡技能和胜负，已出局玩家不再参选或投票。', '无人上警则警徽流失，一人上警则直接当选；多人上警进入投票。警长的放逐票权可设为 1 票或 1.5 票。警长出局后可移交或撕毁警徽。'] },
   { id: 'medicine', title: '女巫与守卫', paragraphs: ['女巫各有一瓶解药和毒药。自救可设为禁止、仅首夜或始终允许；是否允许同夜双药也由本局桌规决定。空刀不能使用解药，已消耗的药不能再次使用。', '守卫可以自守或空守，默认禁止连续两夜守同一人，本桌可在赛前改为允许连守。同守同救的目标存活或死亡由开局选择决定；守卫不抵挡女巫毒药。'] },
   { id: 'voting', title: '放逐、弃票与 PK', paragraphs: ['每名合资格玩家逐人记录一票或弃票。全部录入后计票，警长的加权票只计入放逐投票。', '警长与放逐平票分别选择：进入一轮 PK，或直接警徽流失 / 无人出局。选择 PK 后再次平票，或首轮全员弃票，都不产生当选或放逐。PK 候选人不参与该轮投票。', '白痴首次被放逐会翻牌免死，此后失去投票权，也不能再作为放逐候选人或警徽接任者。'] },
-  { id: 'death-skills', title: '出局技能与人工裁定', paragraphs: ['猎人被毒是否开枪按桌规开关执行。白狼王只在自爆时进入带人流程。其他特殊角色的触发和限制需结合该版本规则核对。', '人工裁定在白天发言阶段调整玩家状态，并记录理由。它不是完整的特殊角色技能引擎；查看图鉴中的自动处理范围后再使用相应板子。'] },
+  { id: 'death-skills', title: '遗言、出局技能与人工裁定', paragraphs: ['赛前可按首夜夜死、后续夜死、放逐、技能带走和自爆分别开启遗言。命中后先逐座位完成或放弃遗言，再处理猎人、狼王、殉情、白泽传承和警徽。', '猎人被毒是否开枪按桌规开关执行。白狼王只在自爆时进入带人流程。其他特殊角色的触发和限制需结合该版本规则核对。', '人工裁定在白天发言阶段调整玩家状态，并记录理由。它不是完整的特殊角色技能引擎；查看图鉴中的自动处理范围后再使用相应板子。'] },
 ];
 
 export type HostingProgress = { current: string; next: string; check: string };
@@ -29,6 +30,7 @@ export type HostingProgress = { current: string; next: string; check: string };
 /** A conditional roadmap, never a promise to skip pending skills or victory checks. */
 export function hostingProgress(game: Game): HostingProgress {
   const stage = game.stage;
+  const deathWork = hasLastWordsPolicy(game.rules) ? '遗言（如命中）→ 出局技能与警徽' : '出局技能与警徽';
   if (isNightStage(stage)) {
     const remaining = game.nightCalls.slice(Math.max(0, game.nightCalls.indexOf(stage as Game['nightCalls'][number]) + 1));
     const next = remaining.find(call => callIsActive(game, call));
@@ -37,14 +39,22 @@ export function hostingProgress(game: Game): HostingProgress {
   if (stage === 'dawn') {
     const election = game.day === 1 && game.rules.sheriff && !game.sheriffDone;
     return { current: '天亮核对', next: election
-      ? game.rules.sheriffTiming === 'after-announcement' ? '公布结果 → 技能与警徽 → 核对胜负 → 竞选' : '警长竞选 → 公布昨夜结果'
-      : '公布结果 → 技能与警徽 → 核对胜负', check: '核对私密预览；公开只读出局座位，不念死亡原因。' };
+      ? game.rules.sheriffTiming === 'after-announcement' ? `公布结果 → ${deathWork} → 核对胜负 → 竞选` : '警长竞选 → 公布昨夜结果'
+      : `公布结果 → ${deathWork} → 核对胜负`, check: '核对私密预览；公开只读出局座位，不念死亡原因。' };
   }
-  if (stage === 'dawn-announcement') return { current: '公布昨夜结果', next: '死亡技能与警徽 → 核对胜负 → 未结束则白天发言', check: '先确认公开名单，再处理需要发动的死亡技能。' };
+  if (stage === 'dawn-announcement') return { current: '公布昨夜结果', next: `${deathWork} → 核对胜负 → 未结束则白天发言`, check: '先确认公开名单，再处理遗言和需要发动的死亡技能。' };
+  if (stage === 'last-words') {
+    const queued = game.pending.filter(item => item.kind === 'last-words').length;
+    return {
+      current: '出局遗言',
+      next: queued > 1 ? `剩余 ${queued - 1} 名遗言 → 出局技能与警徽` : '出局技能与警徽 → 核对胜负',
+      check: '按队列逐座位完成或明确放弃遗言；遗言结束后再处理出局技能和警徽。',
+    };
+  }
   if (stage === 'sheriff-signup') return { current: '警长竞选', next: '确认最终名单 → 投票或直接当选', check: '候选人完成发言、退水后，再确认最终上警名单。' };
   if (stage === 'sheriff-vote') return { current: game.vote?.round === 2 ? '警长 PK 投票' : '警长投票', next: `${game.vote?.round === 2 || tableRules(game.rules).sheriffTie === 'none' ? '计票' : '计票 / PK'} → ${game.announcementReady ? '公布昨夜结果' : '核对待处理技能与胜负'}`, check: '逐人记录目标或弃票，全部录齐后再计票。' };
   if (stage === 'discussion') return { current: '白天发言', next: '放逐投票；自爆则进入出局结算', check: '确认发言顺序并完成本轮发言，再发起投票。' };
-  if (stage === 'exile-vote') return { current: game.vote?.round === 2 ? '放逐 PK 投票' : '放逐投票', next: `${game.vote?.round === 2 || tableRules(game.rules).exileTie === 'none' ? '计票' : '计票 / PK'} → 出局技能与警徽 → 核对胜负`, check: '核对本轮投票资格，逐人记录后再确认票型。' };
+  if (stage === 'exile-vote') return { current: game.vote?.round === 2 ? '放逐 PK 投票' : '放逐投票', next: `${game.vote?.round === 2 || tableRules(game.rules).exileTie === 'none' ? '计票' : '计票 / PK'} → ${deathWork} → 核对胜负`, check: '核对本轮投票资格，逐人记录后再确认票型。' };
   if (stage === 'ended') return { current: '对局结束', next: '公开身份与复盘', check: '确认所有人结束游戏后，再分享含身份的记录。' };
-  return { current: stage === 'badge' ? '警徽处理' : stage === 'heir' ? '白泽传承' : '出局技能', next: `剩余技能与警徽 → 核对胜负 → ${game.resume === 'night' ? '下一夜' : !game.sheriffDone ? '首日竞选' : '白天发言'}`, check: '按待处理顺序逐项确认；存在技能队列时不跳步。' };
+  return { current: stage === 'badge' ? '警徽处理' : stage === 'heir' ? '白泽传承' : '出局技能', next: `${hasLastWordsPolicy(game.rules) ? '剩余遗言、技能与警徽' : '剩余技能与警徽'} → 核对胜负 → ${game.resume === 'night' ? '下一夜' : !game.sheriffDone ? '首日竞选' : '白天发言'}`, check: '按待处理顺序逐项确认；存在技能队列时不跳步。' };
 }

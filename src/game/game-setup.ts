@@ -1,5 +1,6 @@
 import { resolveNightOrder, validateFlow } from './flow';
 import { ROLES, ROLE_IDS, isVillager, isWolf } from './roles';
+import { isValidSpeechSeconds, validateSpeechDurations } from './speech';
 import { tableRules, validateTableRules } from './table-rules';
 import type { Counts, Game, Role, Rules } from './types';
 import { clone, demand, emptyNight, log } from './shared';
@@ -30,6 +31,8 @@ export function createGame(name: string, board: string, players: { name: string;
   const modeledThird = new Set<Role>(['fox', 'treasure-master']);
   demand(!players.some(p => ROLES[p.role].camp === 'third' && !modeledThird.has(p.role)) || rules.flow?.manualVictory === true, '含第三方或可变阵营身份，须由主持人判定胜负');
   demand(['edge', 'all'].includes(rules.win), '胜负规则无效');
+  demand(isValidSpeechSeconds(rules.speechSeconds), '默认发言计时无效');
+  demand(validateSpeechDurations(rules.speechDurations), '分阶段发言计时无效');
   demand(validateTableRules(rules.table), '本桌规则无效');
   demand(rules.flow === undefined || validateFlow(rules.flow, c), '自定义流程无效，请检查夜间顺序和主持词');
   const now = Date.now();

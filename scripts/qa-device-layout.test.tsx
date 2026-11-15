@@ -38,5 +38,6 @@ describe('seat controls under device layout and eligibility changes', () => {
     const seat = renderer!.root.findAll(node => node.props.accessibilityLabel === '2号 存活' && typeof node.props.onPress === 'function')[0];
     const styles = typeof seat.props.style === 'function' ? seat.props.style({ pressed: false }) : seat.props.style;
     expect(Native.StyleSheet.flatten(styles).width).toBe(140);
+    expect(Native.StyleSheet.flatten(styles).minHeight).toBeGreaterThan(92);
   });
 });

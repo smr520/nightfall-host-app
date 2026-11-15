@@ -7,14 +7,18 @@ import { Icon } from '../Icon';
 import { MotionPressable } from '../motion';
 import type { SpeechClock } from '../../hooks/useSpeechClock';
 
-export function SpeechTimer({ game, clock, eligibleSeats, label }: { game: Game; clock: SpeechClock; eligibleSeats?: readonly number[]; label?: string }) {
+export function SpeechTimer({ game, clock, eligibleSeats, label, autoSelectSingle = false }: { game: Game; clock: SpeechClock; eligibleSeats?: readonly number[]; label?: string; autoSelectSingle?: boolean }) {
   const { speaker, remaining, running, select, direction } = clock;
   const players = game.players.filter(player => eligibleSeats ? eligibleSeats.includes(player.seat) : player.alive);
   const seats = players.map(player => player.seat).sort((a, b) => (a - b) * direction);
   const eligible = speaker !== null && seats.includes(speaker);
+  const singleSeat = seats.length === 1 ? seats[0] : null;
   useEffect(() => {
     if (speaker !== null && !eligible) select(null);
   }, [speaker, eligible, select]);
+  useEffect(() => {
+    if (autoSelectSingle && speaker === null && singleSeat !== null) select(singleSeat);
+  }, [autoSelectSingle, singleSeat, select, speaker]);
   const title = eligible ? label ? `${speaker} 号 · ${label}` : `${speaker} 号发言` : label ?? '发言计时';
   const timeLabel = running ? '计时中' : remaining === 0 ? '时间到' : eligible ? '已暂停' : '请先点选发言人';
   return <View style={styles.root}>

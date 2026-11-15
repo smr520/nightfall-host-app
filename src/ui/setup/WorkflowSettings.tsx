@@ -3,14 +3,16 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { callTitle, countsFromRoles } from '../../game/boards';
 import { reconcileNightOrder, resolveNightOrder } from '../../game/flow';
 import { ROLES, ROLE_IDS } from '../../game/roles';
-import type { HostingFlow, NightCall, Role, Rules, Stage } from '../../game/types';
+import { isValidSpeechSeconds, MAX_SPEECH_SECONDS, MIN_SPEECH_SECONDS, speechSecondsForRules, SPEECH_LABELS, type SpeechKind } from '../../game/speech';
+import type { HostingFlow, LastWordsPolicy, NightCall, Role, Rules, Stage } from '../../game/types';
 import { colors, radius, spacing, type } from '../../theme';
 import { Button, Card, InlineError, SwitchRow } from '../kit';
 
 const fixedStages: { id: Stage; label: string }[] = [
   { id: 'dawn', label: '天亮核对' }, { id: 'dawn-announcement', label: '公布结果' }, { id: 'sheriff-signup', label: '警长竞选' },
   { id: 'sheriff-vote', label: '警长投票' }, { id: 'discussion', label: '白天发言' }, { id: 'exile-vote', label: '放逐投票' },
-  { id: 'hunter', label: '猎人技能' }, { id: 'shot', label: '出局技能' }, { id: 'link', label: '跟随出局' }, { id: 'badge', label: '警徽处理' },
+  { id: 'last-words', label: '出局遗言' }, { id: 'hunter', label: '猎人技能' }, { id: 'shot', label: '出局技能' },
+  { id: 'link', label: '跟随出局' }, { id: 'badge', label: '警徽处理' },
 ];
 
 export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; rules: Rules; onChange: (rules: Rules) => void }) {
@@ -20,6 +22,9 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
   const [error, setError] = useState('');
   const [duration, setDuration] = useState(String(rules.speechSeconds));
   const patch = (next: Partial<HostingFlow>) => onChange({ ...rules, flow: { ...rules.flow, ...next } });
+  const patchLastWords = (next: Partial<LastWordsPolicy>) => patch({
+    lastWords: { ...rules.flow?.lastWords, ...next },
+  });
   const move = (call: NightCall, delta: -1 | 1) => {
     const index = order.indexOf(call); const destination = index + delta;
     if (destination < 0 || destination >= order.length) return;
@@ -32,6 +37,7 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
     if (id === 'hunter') return roles.includes('hunter');
     if (id === 'shot') return roles.some(role => role !== 'hunter' && ROLES[role].onDeath === 'shot');
     if (id === 'link') return roles.some(role => ROLES[role].onDeath === 'link');
+    if (id === 'last-words') return Object.values(rules.flow?.lastWords ?? {}).some(Boolean);
     return true;
   });
   const scriptStages = [...order.map(id => ({ id: id as Stage, label: callTitle(id) })), ...relevantStages];
@@ -51,10 +57,18 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
       <SwitchRow label="保留已出局角色的夜间口播" hint="不翻身份的面杀局可开启：角色出局后仍照常念睁眼、行动、闭眼台词，点继续即可，不录入目标。关闭后跳过该角色的后续夜间环节。" value={rules.flow?.keepDeadCalls === true} onChange={keepDeadCalls => patch({ keepDeadCalls })} />
       <SwitchRow label="天亮时手动确认出局名单" hint="确认出局座位和原因后，再按正常流程处理技能、警徽和胜负。" value={rules.flow?.manualDawn === true} onChange={manualDawn => patch({ manualDawn })} />
       <SwitchRow label="由主持人判定对局结束" hint="特殊胜负或尚未自动处理的技能可开启；完成技能与警徽后，在“更多”中手动结束对局。" value={rules.flow?.manualVictory === true} onChange={manualVictory => patch({ manualVictory })} />
+      <Text style={type.headline}>出局遗言</Text>
+      <Text style={type.footnote}>命中后进入独立队列，逐座位完成或放弃；全部遗言处理完，才继续出局技能、警徽和胜负。</Text>
+      <SwitchRow label="首夜夜死有遗言" hint="第一夜因刀伤、毒药或夜间技能出局的玩家进入遗言队列。" value={rules.flow?.lastWords?.firstNight === true} onChange={firstNight => patchLastWords({ firstNight })} />
+      <SwitchRow label="后续夜死有遗言" hint="第二夜及以后因夜间效果出局的玩家进入遗言队列。" value={rules.flow?.lastWords?.laterNight === true} onChange={laterNight => patchLastWords({ laterNight })} />
+      <SwitchRow label="放逐有遗言" hint="被投票放逐的玩家先完成或放弃遗言，再处理猎人和警徽。" value={rules.flow?.lastWords?.exile === true} onChange={exile => patchLastWords({ exile })} />
+      <SwitchRow label="技能带走有遗言" hint="被开枪、殉情或其他已记录技能带走的玩家进入遗言队列。" value={rules.flow?.lastWords?.skill === true} onChange={skill => patchLastWords({ skill })} />
+      <SwitchRow label="自爆有遗言" hint="狼人自爆后按本桌约定进入遗言队列。" value={rules.flow?.lastWords?.explode === true} onChange={explode => patchLastWords({ explode })} />
       <Text style={type.headline}>每位玩家发言时长</Text>
       <View style={styles.choices}>{[60, 90, 120, 180].map(seconds => <Pressable key={seconds} accessibilityRole="button" accessibilityLabel={`发言时长 ${seconds} 秒`} accessibilityState={{ selected: rules.speechSeconds === seconds }} onPress={() => { onChange({ ...rules, speechSeconds: seconds }); setDuration(String(seconds)); }} style={[styles.choice, rules.speechSeconds === seconds && styles.active]}><Text style={[type.callout, rules.speechSeconds === seconds && styles.activeText]}>{seconds} 秒</Text></Pressable>)}</View>
       <View style={styles.durationRow}><TextInput value={duration} onChangeText={setDuration} keyboardType="number-pad" maxLength={4} accessibilityLabel="自定义发言秒数" style={styles.durationInput} /><Button title="应用秒数" small variant="secondary" onPress={() => { const seconds = Number(duration); if (!Number.isInteger(seconds) || seconds < 15 || seconds > 1800) { setError('发言时长支持 15–1800 秒的整数'); return; } onChange({ ...rules, speechSeconds: seconds }); setError(''); }} /></View>
       <Text style={type.footnote}>15–1800 秒。计时到零后由主持人决定何时结束发言。</Text>
+      <PhaseDurations rules={rules} onChange={next => { onChange(next); setError(''); }} onError={setError} />
     </Card>
     <Card style={styles.group}>
       <Text style={type.headline}>我的主持词</Text><Text style={type.footnote}>这里只列本局会用到的环节。选择后编辑，留空沿用标准口播。可用 {'{目标}'}、{'{候选人}'}、{'{投票人}'}、{'{发言人}'}、{'{昨夜结果}'}。</Text>
@@ -63,5 +77,72 @@ export function WorkflowSettings({ roles, rules, onChange }: { roles: Role[]; ru
       <Text style={type.footnote}>夜间角色座位与目标会显示在私密提示中。公开口播只提供当前环节可公开的信息。</Text>
     </Card>
   </View>;
+}
+
+function PhaseDurations({ rules, onChange, onError }: {
+  rules: Rules;
+  onChange: (rules: Rules) => void;
+  onError: (message: string) => void;
+}) {
+  const kinds: SpeechKind[] = ['sheriff', 'pk', 'lastWords'];
+  const [kind, setKind] = useState<SpeechKind>('sheriff');
+  const current = speechSecondsForRules(rules, kind);
+  const [draft, setDraft] = useState(String(current));
+  const apply = (seconds: number) => {
+    if (!isValidSpeechSeconds(seconds)) {
+      onError(`发言时长支持 ${MIN_SPEECH_SECONDS}–${MAX_SPEECH_SECONDS} 秒的整数`);
+      return;
+    }
+    onChange({
+      ...rules,
+      speechDurations: { ...rules.speechDurations, [kind]: seconds },
+    });
+  };
+  return <>
+    <Text style={type.headline}>其他环节单独计时</Text>
+    <Text style={type.footnote}>警上、PK 和遗言可分别设置；未设置的环节继续沿用上面的发言时长。</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scriptStages}>
+      {kinds.map(item => (
+        <Pressable
+          key={item}
+          accessibilityRole="button"
+          accessibilityLabel={`计时类型：${SPEECH_LABELS[item]}`}
+          accessibilityState={{ selected: kind === item }}
+          onPress={() => {
+            setKind(item);
+            setDraft(String(speechSecondsForRules(rules, item)));
+          }}
+          style={[styles.choice, kind === item && styles.active]}
+        >
+          <Text style={[type.callout, kind === item && styles.activeText]}>{SPEECH_LABELS[item]} · {speechSecondsForRules(rules, item)} 秒</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+    <View style={styles.choices}>
+      {[30, 45, 60, 90, 120].map(seconds => (
+        <Pressable
+          key={seconds}
+          accessibilityRole="button"
+          accessibilityLabel={`${SPEECH_LABELS[kind]} ${seconds} 秒`}
+          accessibilityState={{ selected: current === seconds }}
+          onPress={() => { setDraft(String(seconds)); apply(seconds); }}
+          style={[styles.choice, current === seconds && styles.active]}
+        >
+          <Text style={[type.callout, current === seconds && styles.activeText]}>{seconds} 秒</Text>
+        </Pressable>
+      ))}
+    </View>
+    <View style={styles.durationRow}>
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        keyboardType="number-pad"
+        maxLength={4}
+        accessibilityLabel={`${SPEECH_LABELS[kind]}自定义秒数`}
+        style={styles.durationInput}
+      />
+      <Button title="应用该环节时长" small variant="secondary" onPress={() => apply(Number(draft))} />
+    </View>
+  </>;
 }
 const styles = StyleSheet.create({ root: { gap: spacing.md }, group: { gap: spacing.md }, flex: { flex: 1 }, orderRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.lineSoft }, number: { ...type.numeric, fontSize: 15, width: 26, color: colors.textTertiary }, orderButton: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.surfaceAlt }, disabled: { opacity: 0.3 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, choice: { minHeight: 48, paddingHorizontal: spacing.md, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm, backgroundColor: colors.surfaceAlt }, active: { backgroundColor: colors.accent }, activeText: { color: colors.onAccent }, durationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, durationInput: { minHeight: 48, flex: 1, borderRadius: radius.sm, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt, color: colors.text, fontSize: 16 }, scriptStages: { gap: spacing.sm }, scriptInput: { minHeight: 140, borderRadius: radius.sm, padding: spacing.md, backgroundColor: colors.surfaceAlt, color: colors.text, fontSize: 16, lineHeight: 24, textAlignVertical: 'top' } });

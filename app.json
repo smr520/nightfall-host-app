@@ -3,21 +3,24 @@
     "name": "夜幕 · 主持助手",
     "slug": "nightfall-host",
     "scheme": "nightfall",
-    "version": "0.7.0",
+    "version": "1.0.0",
     "platforms": [
-      "android"
+      "android",
+      "web"
     ],
     "orientation": "default",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "android": {
       "package": "com.nightfall.werewolfhost",
-      "versionCode": 8,
+      "versionCode": 9,
       "predictiveBackGestureEnabled": true,
       "permissions": [],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -27,7 +30,8 @@
     "plugins": [
       "expo-sqlite",
       "expo-system-ui",
-      "./plugins/with-android-release-signing"
+      "./plugins/with-android-release-signing",
+      "./plugins/with-android-privacy"
     ]
   }
 }

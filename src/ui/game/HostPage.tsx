@@ -18,8 +18,10 @@ import { colors, type } from '../../theme';
 import { styles } from './styles';
 import type { Draft } from './draft';
 import { EndedPanel, HuntButton, NineTailsMarks, NightRecords, PendingPanel, WitchPanel } from './HostPanels';
+import type { HostTextSize } from '../../game/preferences';
+import { hostTextMetrics } from '../host-text';
 
-export function HostPage({ game, stage, draft, patch, doAction, showRoles, scroll, error, activeVoter, speechClock, onOpenTools, onGoSeats, onGoLog, onTemporarySpeech, onNote, footer }: {
+export function HostPage({ game, stage, draft, patch, doAction, showRoles, scroll, error, activeVoter, speechClock, hostTextSize = 'standard', supportTaskCount = 0, onOpenTools, onOpenSupport = () => {}, onGoSeats, onGoLog, onTemporarySpeech, onNote, footer }: {
   game: Game;
   stage: Stage;
   draft: Draft;
@@ -30,7 +32,10 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
   error: string;
   activeVoter: number | null;
   speechClock: SpeechClock;
+  hostTextSize?: HostTextSize;
+  supportTaskCount?: number;
   onOpenTools: () => void;
+  onOpenSupport?: () => void;
   onGoSeats: () => void;
   onGoLog: () => void;
   onTemporarySpeech: () => void;
@@ -39,6 +44,10 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
 }) {
   const info = stageInfo(stage, game);
   const responsive = useResponsive();
+  const hostText = hostTextMetrics(hostTextSize);
+  const headlineTextStyle = { fontSize: hostText.headlineSize, lineHeight: hostText.headlineLineHeight };
+  const scriptTextStyle = { fontSize: hostText.scriptSize, lineHeight: hostText.scriptLineHeight };
+  const privateTextStyle = { fontSize: hostText.privateSize, lineHeight: hostText.privateLineHeight };
   const narrationGame = dawnDraftNeedsConfirmation(game, draft.dawn) ? { ...game, night: { ...game.night, manualDeaths: undefined } } : game;
   const narration = hostNarration(narrationGame, info.script, { selected: draft.selected, activeVoter, speaker: speechClock.speaker, signup: draft.signup, pkSpeaking: draft.pkSpeaking, voteMode: draft.voteMode, batchVoters: draft.batchVoters, editingVoter: draft.voter });
   const recentOutcome = draft.selected === null && draft.poison === null && !draft.save && speechClock.speaker === null ? latestPublicOutcome(game) : null;
@@ -54,20 +63,46 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
       <ScrollView ref={scroll} contentContainerStyle={[styles.content, { paddingHorizontal: responsive.gutter, width: '100%', maxWidth: responsive.maxContentWidth, alignSelf: 'center' }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {recentOutcome ? <View style={styles.publicOutcome}>
           <View style={styles.scriptEyebrow}><Icon name="check" size={16} color={colors.danger} /><Text style={styles.outcomeLabel}>刚刚公布的结果</Text></View>
-          <Text accessibilityRole="header" accessibilityLabel="刚刚公布的大字结果" style={[styles.speechHeadline, styles.outcomeHeadline]}>{recentOutcome.headline}</Text>
-          <Text accessibilityLabel="刚刚公布的台词" selectable style={styles.script}>{recentOutcome.spoken}</Text>
+          <Text accessibilityRole="header" accessibilityLabel="刚刚公布的大字结果" style={[styles.speechHeadline, headlineTextStyle, styles.outcomeHeadline]}>{recentOutcome.headline}</Text>
+          <Text accessibilityLabel="刚刚公布的台词" selectable style={[styles.script, scriptTextStyle]}>{recentOutcome.spoken}</Text>
         </View> : null}
         <View style={styles.stageHead}>
           <View style={styles.rowBetween}>
             <View style={styles.scriptEyebrow}><Icon name={night ? 'moon' : 'mic'} size={18} color={colors.clay} /><Text style={styles.scriptLabel}>主持人口播 · {info.title}</Text></View>
             <Text style={styles.scriptPage}>{String(game.day).padStart(2, '0')}</Text>
           </View>
-          <Text accessibilityRole="header" accessibilityLabel="本环节大字提示" style={[styles.speechHeadline, (stage === 'dawn' || stage === 'dawn-announcement' || stage === 'hunter' || stage === 'shot' || stage === 'link') && styles.outcomeHeadline]}>{narration.headline}</Text>
-          <View style={styles.scriptTextWrap}><Text accessibilityLabel="完整主持台词" selectable style={styles.script}>{narration.spoken}</Text></View>
+          <Text accessibilityRole="header" accessibilityLabel="本环节大字提示" style={[styles.speechHeadline, headlineTextStyle, (stage === 'dawn' || stage === 'dawn-announcement' || stage === 'hunter' || stage === 'shot' || stage === 'link') && styles.outcomeHeadline]}>{narration.headline}</Text>
+          <View style={styles.scriptTextWrap}><Text accessibilityLabel="完整主持台词" selectable style={[styles.script, scriptTextStyle]}>{narration.spoken}</Text></View>
         </View>
 
-        {stage !== 'ended' ? <View style={styles.operationHead}><View style={styles.scriptEyebrow}><Icon name="shield" size={16} color={colors.textTertiary} /><Text style={styles.operationLabel}>主持人操作</Text></View><Text style={styles.operationHint}>以下内容不用念</Text></View> : null}
-        {narration.privateNote ? <View style={styles.privatePrompt}><Text style={styles.privateLabel}>仅主持人看</Text><Text style={styles.privateText}>{narration.privateNote}</Text></View> : null}
+        {stage !== 'ended' ? <View style={styles.operationHead}><View style={styles.scriptEyebrow}><Icon name="shield" size={16} color={colors.textTertiary} /><Text style={[styles.operationLabel, { fontSize: hostText.operationSize }]}>主持人操作</Text></View><Text style={styles.operationHint}>以下内容不用念</Text></View> : null}
+        {supportTaskCount > 0 && stage !== 'ended' ? (
+          <View style={styles.supportBanner}>
+            <View style={styles.supportBannerText}>
+              <Text style={type.callout}>本局有 {supportTaskCount} 项特殊技能需要核对</Text>
+              <Text style={type.footnote}>打开清单，写明本次座位、目标、次数或裁定结果。</Text>
+            </View>
+            <Button title="打开技能清单" variant="secondary" small onPress={onOpenSupport} />
+          </View>
+        ) : null}
+        {narration.privateNote ? <View style={styles.privatePrompt}><Text style={styles.privateLabel}>仅主持人看</Text><Text style={[styles.privateText, privateTextStyle]}>{narration.privateNote}</Text></View> : null}
+
+        {stage === 'last-words' && pending?.kind === 'last-words' ? (
+          <Card style={styles.panel}>
+            <View style={styles.rowBetween}>
+              <Text style={type.headline}>当前遗言</Text>
+              <Text style={type.caption}>{game.pending.filter(item => item.kind === 'last-words').length} 人待处理</Text>
+            </View>
+            <Text style={type.body}>{pending.seat} 号玩家按赛前约定进入遗言队列。可先计时，再确认发言结束或放弃遗言。</Text>
+            <SpeechTimer
+              game={game}
+              clock={speechClock}
+              eligibleSeats={[pending.seat]}
+              label="遗言"
+              autoSelectSingle
+            />
+          </Card>
+        ) : null}
 
         {(stage === 'dawn' || stage === 'dawn-announcement') ? <DawnReview game={game} draft={draft.dawn} onChange={next => patch({ dawn: { ...draft.dawn, ...next } })} doAction={doAction} /> : null}
 
@@ -182,7 +217,7 @@ export function HostPage({ game, stage, draft, patch, doAction, showRoles, scrol
         </View> : null}
         {game.rules.flow?.manualVictory && stage !== 'ended' ? <Text style={type.footnote}>本局胜负由主持人确认；满足本桌胜利条件后，到“更多”结束并选择获胜阵营。</Text> : null}
 
-        <View style={styles.nextStep}><Icon name="chevron-right" size={16} color={colors.textTertiary} /><Text style={styles.nextStepText}>下一环节：{progress.next}</Text></View>
+        <View style={styles.nextStep}><Icon name="chevron-right" size={16} color={colors.textTertiary} /><Text style={[styles.nextStepText, hostTextSize !== 'standard' && { fontSize: hostText.operationSize + 2, lineHeight: hostText.operationSize + 7 }]}>下一环节：{progress.next}</Text></View>
 
         <View style={styles.bottomMeta}>
           <Pressable accessibilityRole="button" accessibilityLabel="查看主持记录" onPress={onGoLog} style={styles.logLink}><Icon name="history" size={16} color={colors.textSecondary} /><Text style={styles.linkText}>主持记录 · {game.events.length} 条</Text></Pressable>

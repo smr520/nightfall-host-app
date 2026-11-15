@@ -1,8 +1,9 @@
 import { nightCallsFor } from './boards';
+import { validateLastWordsPolicy } from './last-words';
 import { ROLES, isRole } from './roles';
 import type { Counts, HostingFlow, NightCall } from './types';
 
-const FIXED_FLOW_STAGES = ['dawn', 'dawn-announcement', 'sheriff-signup', 'sheriff-vote', 'discussion', 'exile-vote', 'hunter', 'badge', 'shot', 'link', 'heir', 'ended'];
+const FIXED_FLOW_STAGES = ['dawn', 'dawn-announcement', 'last-words', 'sheriff-signup', 'sheriff-vote', 'discussion', 'exile-vote', 'hunter', 'badge', 'shot', 'link', 'heir', 'ended'];
 const validCall = (value: unknown): value is NightCall => value === 'wolves' || isRole(value) && !!ROLES[value].night;
 const validScriptStage = (value: string) => FIXED_FLOW_STAGES.includes(value) || validCall(value);
 export const DAWN_CAUSES = ['knife', 'poison', 'shot', 'ruling', 'link', 'dance', 'check', 'dream', 'demon-hunt'] as const;
@@ -35,6 +36,7 @@ export function validateFlow(value: unknown, counts?: Counts): value is HostingF
   if (flow.manualDawn !== undefined && typeof flow.manualDawn !== 'boolean') return false;
   if (flow.keepDeadCalls !== undefined && typeof flow.keepDeadCalls !== 'boolean') return false;
   if (flow.manualVictory !== undefined && typeof flow.manualVictory !== 'boolean') return false;
+  if (!validateLastWordsPolicy(flow.lastWords)) return false;
   if (flow.nightOrder !== undefined) {
     if (!Array.isArray(flow.nightOrder) || flow.nightOrder.some(call => !validCall(call)) || new Set(flow.nightOrder).size !== flow.nightOrder.length) return false;
     if (counts) {

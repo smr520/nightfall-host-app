@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { persistPreferences, readPreferences } from '../storage';
-import { MAX_HOSTING_PROFILES, normalizePreferences, type HostPreferences, type HostingMode, type HostingProfile } from '../game/preferences';
+import { MAX_HOSTING_PROFILES, normalizePreferences, type HostPreferences, type HostingMode, type HostingProfile, type HostTextSize } from '../game/preferences';
 import type { SetupMemory } from '../game/setup-memory';
+import { createHostPinCredential, verifyHostPinCredential } from '../host-lock';
 
 type ProfileDraft = Omit<HostingProfile, 'id'>;
 
@@ -132,6 +133,23 @@ export function useHostingPreferences() {
   const rememberSetup = (setup: SetupMemory) => {
     void writePreferences(current => ({ ...current, lastSetup: setup })).catch(() => undefined);
   };
+  const changeTextSize = (textSize: HostTextSize) => {
+    void writePreferences(current => ({ ...current, textSize })).catch(() => undefined);
+  };
+  const setHostPin = async (pin: string) => {
+    const credential = await createHostPinCredential(pin);
+    await writePreferences(current => ({ ...current, hostPin: credential }));
+  };
+  const clearHostPin = async () => {
+    await writePreferences(current => {
+      const { hostPin: _hostPin, ...rest } = current;
+      return rest;
+    });
+  };
+  const verifyHostPin = async (pin: string) => {
+    const credential = preferencesRef.current.hostPin;
+    return credential ? verifyHostPinCredential(credential, pin) : true;
+  };
 
   return {
     preferences, preferencesReadable, preferenceError, preferenceWarning, preferenceSaving,
@@ -139,6 +157,9 @@ export function useHostingPreferences() {
     hostingMode: preferences.hostingMode,
     selectedProfile: preferences.profiles.find(profile => profile.id === preferences.selectedProfileId),
     lastSetup: preferences.lastSetup,
-    changeHostingMode, saveProfile, duplicateProfile, deleteProfile, selectProfile, rememberSetup,
+    textSize: preferences.textSize ?? 'standard',
+    hostPin: preferences.hostPin,
+    changeHostingMode, changeTextSize, setHostPin, clearHostPin, verifyHostPin,
+    saveProfile, duplicateProfile, deleteProfile, selectProfile, rememberSetup,
   };
 }

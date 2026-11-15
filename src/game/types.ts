@@ -7,7 +7,7 @@ export type NightCall = Role | 'wolves';
 
 /** 固定阶段 + 夜间角色行动阶段（阶段名即行动 id） */
 export type Stage =
-  | 'dawn' | 'dawn-announcement' | 'sheriff-signup' | 'sheriff-vote'
+  | 'dawn' | 'dawn-announcement' | 'last-words' | 'sheriff-signup' | 'sheriff-vote'
   | 'discussion' | 'exile-vote' | 'hunter' | 'badge' | 'shot' | 'link' | 'heir' | 'ended'
   | NightCall;
 
@@ -33,10 +33,32 @@ export type Rules = {
   hunterPoison: boolean;
   sheriffWeight: 1 | 1.5;
   speechSeconds: number;
+  /** 各环节独立计时；缺失字段沿用 speechSeconds。 */
+  speechDurations?: SpeechDurations;
   /** Optional per-table overrides. Omitted fields use the standard defaults. */
   table?: TableRules;
   /** 可选的主持流程覆盖；不填时使用板子默认流程。 */
   flow?: HostingFlow;
+};
+
+export type SpeechDurations = {
+  discussion?: number;
+  sheriff?: number;
+  pk?: number;
+  lastWords?: number;
+};
+
+export type LastWordsPolicy = {
+  /** 首夜因夜间效果出局。 */
+  firstNight?: boolean;
+  /** 第二夜及以后因夜间效果出局。 */
+  laterNight?: boolean;
+  /** 被放逐。 */
+  exile?: boolean;
+  /** 被技能带走或由主持人裁定为技能出局。 */
+  skill?: boolean;
+  /** 白天自爆。 */
+  explode?: boolean;
 };
 
 export type TableRules = {
@@ -65,6 +87,8 @@ export type HostingFlow = {
   keepDeadCalls?: boolean;
   /** Let the host confirm victory instead of ending automatically for standard camps. */
   manualVictory?: boolean;
+  /** 各类死亡是否进入独立遗言队列；全部缺省时保持旧流程。 */
+  lastWords?: LastWordsPolicy;
 };
 
 export type Night = {
@@ -91,7 +115,7 @@ export type Vote = {
 };
 
 export type Pending = {
-  kind: 'hunter' | 'shot' | 'link' | 'badge' | 'heir';
+  kind: 'last-words' | 'hunter' | 'shot' | 'link' | 'badge' | 'heir';
   seat: number;
   role?: Role;
   /** link 类型需要带走的座位 */
@@ -171,6 +195,7 @@ export type Action =
   | { type: 'dawn' }
   | { type: 'set-dawn-deaths'; deaths: { seat: number; cause: Cause }[]; reason: string }
   | { type: 'announce-dawn' }
+  | { type: 'last-words'; speak: boolean }
   | { type: 'signup'; seats: number[] }
   | { type: 'ballot'; voter: number; target: number | null }
   | { type: 'ballots'; voters: number[]; target: number | null }
@@ -188,4 +213,4 @@ export type Action =
   | { type: 'explode'; seat: number }
   | { type: 'ruling'; seat: number; alive: boolean; reason: string }
   | { type: 'note'; text: string }
-  | { type: 'finish'; winner: 'good' | 'wolf' | 'third' | 'draw'; reason: string };
+  | { type: 'finish'; winner: 'good' | 'wolf' | 'third' | 'draw'; reason: string; discardPending?: boolean };

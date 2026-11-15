@@ -16,7 +16,7 @@ import { Icon } from './Icon';
 import { usePageEnter } from './motion';
 import { hostingModeLabel, profileBoard, rulesForHostingMode, type HostingMode, type HostingProfile } from './preferences';
 import { boardForSetup, makeSetupMemory, type SetupMemory } from '../game/setup-memory';
-import { useResponsive } from './responsive';
+import { clampFontScale, useResponsive } from './responsive';
 import { WorkflowSettings } from './setup/WorkflowSettings';
 import { boardIntroduction } from '../game/board-reference';
 import { hostingSupport, withSupportDefaults } from '../game/support-policy';
@@ -41,7 +41,7 @@ export function SetupScreen({ mode, initialRules, initialProfile, initialSetup, 
   const editingProfile = !!onSaveProfile;
   const { fontScale } = useWindowDimensions();
   const responsive = useResponsive();
-  const seatNumberWidth = Math.max(38, Math.ceil(26 * Math.min(1.35, Math.max(0.9, fontScale))));
+  const seatNumberWidth = Math.max(38, Math.ceil(26 * clampFontScale(fontScale)));
   const [step, setStep] = useState<Step>(0);
   const [stepDirection, setStepDirection] = useState(1);
   const stepMotion = usePageEnter(String(step), stepDirection);

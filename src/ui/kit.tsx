@@ -8,7 +8,7 @@ import { ROLES, isWolf } from '../game/roles';
 import type { Game, Player } from '../game/types';
 import { MotionPressable as Pressable, useAnimatedScalar, usePageEnter, useSheetMotion } from './motion';
 import { Icon, type IconName } from './Icon';
-import { useResponsive } from './responsive';
+import { clampFontScale, useResponsive } from './responsive';
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[kit.screen, style]}>{children}</View>;
@@ -128,7 +128,9 @@ export function SeatGrid({ game, selected, onSelect, showRoles, filter, multi = 
   const players = game.players.filter(filter ?? (() => true));
   const [gridWidth, setGridWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const minSeatWidth = Math.max(66, Math.ceil(66 * Math.min(1.35, Math.max(0.9, fontScale))));
+  const supportedFontScale = clampFontScale(fontScale);
+  const minSeatWidth = Math.max(66, Math.ceil(66 * supportedFontScale));
+  const seatMinHeight = Math.round(92 + Math.max(0, supportedFontScale - 1) * 22);
   const maxColumns = gridWidth >= 900 ? 8 : gridWidth >= 600 ? 6 : 4;
   const columns = gridWidth ? Math.max(1, Math.min(maxColumns, Math.floor((gridWidth + spacing.sm) / (minSeatWidth + spacing.sm)))) : 4;
   const seatWidth = gridWidth ? (gridWidth - spacing.sm * (columns - 1)) / columns : undefined;
@@ -146,7 +148,7 @@ export function SeatGrid({ game, selected, onSelect, showRoles, filter, multi = 
             accessibilityState={{ selected: isSelected, disabled: seatDisabled }}
             disabled={seatDisabled}
             onPress={() => onSelect(p.seat)}
-            style={({ pressed }) => [kit.seat, seatWidth ? { width: seatWidth } : kit.seatInitial, dead && kit.seatDead, isSelected && kit.seatSelected, pressed && !seatDisabled && kit.pressed]}
+            style={({ pressed }) => [kit.seat, { minHeight: seatMinHeight }, seatWidth ? { width: seatWidth } : kit.seatInitial, dead && kit.seatDead, isSelected && kit.seatSelected, pressed && !seatDisabled && kit.pressed]}
           >
             {p.seat === game.sheriff ? <Text style={[kit.badgeSheriff, isSelected && kit.seatSelectedText]}>警</Text> : null}
             {p.exposed ? <Text style={[kit.badgeExposed, isSelected && kit.seatSelectedText]}>痴</Text> : null}

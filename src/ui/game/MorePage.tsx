@@ -10,16 +10,18 @@ import { Icon } from '../Icon';
 import { MotionPressable } from '../motion';
 import { useResponsive } from '../responsive';
 
-export function MorePage({ game, canUndo, canRedo, onUndo, onRedo, onFinish, onReset, onOpenReference, onOpenTools, onTemporarySpeech, onNote }: {
+export function MorePage({ game, canUndo, canRedo, supportTaskCount = 0, onUndo, onRedo, onFinish, onReset, onOpenReference, onOpenTools, onOpenSupport, onTemporarySpeech, onNote }: {
   game: Game;
   canUndo: boolean;
   canRedo: boolean;
+  supportTaskCount?: number;
   onUndo: () => void;
   onRedo: () => void;
   onFinish: () => void;
   onReset: () => void;
   onOpenReference?: () => void;
   onOpenTools?: () => void;
+  onOpenSupport?: () => void;
   onTemporarySpeech?: () => void;
   onNote?: () => void;
 }) {
@@ -47,6 +49,7 @@ export function MorePage({ game, canUndo, canRedo, onUndo, onRedo, onFinish, onR
       <View style={styles.list}>
         <Text style={styles.groupLabel}>现场工具</Text>
         {onOpenReference ? <ListRow label="规则与角色图鉴" hint="备用查阅，仅显示本局角色" onPress={onOpenReference} /> : null}
+        {onOpenSupport && supportTaskCount > 0 && game.stage !== 'ended' ? <ListRow label={`本局技能处理清单 · ${supportTaskCount} 项`} hint="核对部分自动或主持人处理技能，并把本次结果写入记录" onPress={onOpenSupport} /> : null}
         {onOpenTools && game.stage !== 'ended' ? <ListRow label="自爆与人工裁定" hint={game.stage === 'discussion' ? '现场特例、特殊出局和状态修正' : '白天发言阶段可用；夜间出局请使用天亮复核'} disabled={game.stage !== 'discussion'} onPress={onOpenTools} /> : null}
         {onTemporarySpeech && game.stage !== 'ended' ? <ListRow label="临时发言 / 遗言" hint="按本桌约定选择发言人，可为已出局玩家计时" onPress={onTemporarySpeech} /> : null}
         {onNote && game.stage !== 'ended' ? <ListRow label="现场备忘" hint="记录附加技能、次数和现场约定，仅主持人可见" onPress={onNote} /> : null}
@@ -54,7 +57,7 @@ export function MorePage({ game, canUndo, canRedo, onUndo, onRedo, onFinish, onR
 
       <View style={styles.list}>
         <Text style={styles.groupLabel}>对局管理</Text>
-        {game.stage !== 'ended' ? <ListRow label="主持裁定结束本局" hint={game.rules.flow?.manualVictory ? '本局由主持人确认胜负，选择获胜阵营并写入复盘' : '提前结束并写入复盘'} onPress={onFinish} /> : null}
+        {game.stage !== 'ended' ? <ListRow label="主持裁定结束本局" hint={game.pending.length ? `仍有 ${game.pending.length} 项待办；结束前必须明确放弃` : game.rules.flow?.manualVictory ? '本局由主持人确认胜负，选择获胜阵营并写入复盘' : '提前结束并写入复盘'} onPress={onFinish} /> : null}
         <ListRow label="移除本局" hint="移除前会先备份" tone="danger" onPress={onReset} />
       </View>
 
