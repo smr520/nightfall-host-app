@@ -88,3 +88,7 @@ Set-Location android
 ## 参与贡献
 
 提交问题时请写明板子、座位、操作步骤、预期结果和实际结果。规则存在版本差异时，请同时给出赛前桌规或公开来源；不要在公开 Issue 中粘贴真实玩家姓名、完整私密对局或其他个人信息。
+
+- 可复现问题：[提交使用问题](https://github.com/smr520/nightfall-host-app/issues/new?template=bug_report.yml)
+- 功能与流程建议：[提交功能建议](https://github.com/smr520/nightfall-host-app/issues/new?template=feature_request.yml) 或前往 [Discussions](https://github.com/smr520/nightfall-host-app/discussions)
+- 安全或隐私漏洞：使用 [私密漏洞报告](https://github.com/smr520/nightfall-host-app/security/advisories/new)，不要公开发布私密存档或真实玩家信息

@@ -1,0 +1,97 @@
+name: 使用问题
+description: 提交可以复现的流程错误、判断错误、界面问题或安装问题
+title: "[问题] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请先确认使用最新正式版。
+
+        不要公开真实玩家姓名、身份表、完整私密对局或其他个人信息。
+
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      description: 在 Release 或安装包文件名中查看，例如 1.0.2
+      placeholder: 1.0.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: 设备类型
+      options:
+        - Android 手机
+        - Android 平板
+        - Android 折叠屏或横屏设备
+        - Android 模拟器
+        - Web 界面预览
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 设备与系统
+      description: 填写品牌、型号、Android 版本和横竖屏状态
+      placeholder: 例如：小米平板 7，Android 15，横屏
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: 板子与阶段
+      description: 写明板子、人数和出问题时的流程阶段
+      placeholder: 例如：预女猎白，12 人，第一天放逐投票
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 按 1、2、3 写出开始时看到什么，以及每一步点了什么
+      placeholder: |
+        1. 新建对局并选择……
+        2. 在桌规中设置……
+        3. 进入……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+      placeholder: 你认为软件应该怎样处理
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      placeholder: 实际出现了什么错误、跳步、误判或显示问题
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或补充信息
+      description: 请先遮盖玩家姓名、PIN、完整身份表和其他私密内容
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已移除真实玩家姓名、PIN、私密身份表等敏感信息
+          required: true
