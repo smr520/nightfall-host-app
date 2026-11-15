@@ -3,7 +3,7 @@
     "name": "夜幕 · 主持助手",
     "slug": "nightfall-host",
     "scheme": "nightfall",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "platforms": [
       "android",
       "web"
@@ -13,7 +13,7 @@
     "icon": "./assets/icon.png",
     "android": {
       "package": "com.nightfall.werewolfhost",
-      "versionCode": 11,
+      "versionCode": 12,
       "predictiveBackGestureEnabled": true,
       "permissions": [],
       "blockedPermissions": [
