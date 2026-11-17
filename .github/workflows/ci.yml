@@ -43,5 +43,10 @@ jobs:
       - name: UI and engine test suite
         run: npm run test:ui
 
+      - name: Desktop runtime checks
+        run: |
+          npm run desktop:check
+          npm run desktop:prepare
+
       - name: Expo config checks
         run: npx expo-doctor

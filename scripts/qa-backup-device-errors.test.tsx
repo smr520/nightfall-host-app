@@ -6,6 +6,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { createBackup } from '../src/game/backup';
 import { DataBackupScreen } from '../src/ui/DataBackupScreen';
 
+jest.mock('react-native/Libraries/Utilities/Platform', () => {
+  const platform = {
+    OS: 'android',
+    select: (spec: { android?: unknown; native?: unknown; default?: unknown }) => spec.android ?? spec.native ?? spec.default,
+  };
+  return { __esModule: true, default: platform, ...platform };
+});
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(), readAsStringAsync: jest.fn(),
   StorageAccessFramework: { requestDirectoryPermissionsAsync: jest.fn(), createFileAsync: jest.fn(), writeAsStringAsync: jest.fn() },

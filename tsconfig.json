@@ -6,5 +6,6 @@
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] },
     "ignoreDeprecations": "6.0"
-  }
+  },
+  "exclude": ["node_modules", "desktop", "android", "ios", "dist", "build-output"]
 }

@@ -1,0 +1,75 @@
+appId: com.nightfall.werewolfhost
+productName: 夜幕主持助手
+copyright: Copyright (C) 2026 Nightfall Host contributors
+
+directories:
+  output: ../build-output/desktop
+  buildResources: build
+
+artifactName: nightfall-host-${version}-${os}-${arch}.${ext}
+
+files:
+  - main.cjs
+  - preload.cjs
+  - app/**/*
+
+extraResources:
+  - from: ../LICENSE
+    to: LICENSE
+  - from: ../NOTICE
+    to: NOTICE
+
+asar: true
+npmRebuild: false
+compression: normal
+
+win:
+  icon: ../assets/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  artifactName: nightfall-host-${version}-windows-${arch}-setup.${ext}
+  license: ../LICENSE
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 夜幕主持助手
+  uninstallDisplayName: 夜幕主持助手
+
+portable:
+  artifactName: nightfall-host-${version}-windows-${arch}-portable.${ext}
+
+mac:
+  icon: ../assets/icon.png
+  category: public.app-category.utilities
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  target:
+    - dmg
+
+dmg:
+  artifactName: nightfall-host-${version}-mac-${arch}.${ext}
+  title: 夜幕主持助手 ${version}
+  window:
+    width: 600
+    height: 420
+  contents:
+    - x: 170
+      y: 200
+      type: file
+    - x: 430
+      y: 200
+      type: link
+      path: /Applications
+
+publish: null

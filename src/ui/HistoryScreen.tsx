@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert } from './alert';
+import { backupFilename, shareBackupText } from './backup-file';
 import { colors, spacing, type } from '../theme';
 import { winnerLabel } from '../game/host-ui';
 import { ROLES, isWolf } from '../game/roles';
@@ -26,7 +28,7 @@ export function HistoryScreen({ games, initialOpenId, onBack }: { games: Game[];
     setShareError('');
     Alert.alert('分享完整复盘？', '内容包含身份、出局原因和主持记录，请确认所有玩家已结束游戏。', [
       { text: '取消', style: 'cancel' },
-      { text: '继续分享', onPress: () => { void Share.share({ title: `复盘 · ${open.name}`, message: formatRecap(open) }).catch(() => setShareError('无法打开分享面板。复盘仍保存在本机，请重试。')); } },
+      { text: '继续分享', onPress: () => { void shareBackupText(`复盘 · ${open.name}`, formatRecap(open), `${backupFilename()}-${open.name}`).catch(() => setShareError('无法打开分享面板。复盘仍保存在本机，请重试。')); } },
     ]);
   };
   return (

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert } from '../alert';
 import { tally } from '../../game/engine';
 import type { Action, Game } from '../../game/types';
 import { tableRules } from '../../game/table-rules';

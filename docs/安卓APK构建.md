@@ -1,6 +1,6 @@
-# Android APK 构建
+# 多端构建与发布
 
-正式包由 `.github/workflows/android-apk.yml` 在推送 `v*` 版本标签时构建。普通源码检查由 `.github/workflows/ci.yml` 负责，不再让每次 `main` 提交覆盖 GitHub Releases 的“最新版本”。
+正式包由 `.github/workflows/android-apk.yml` 在推送 `v*` 版本标签时统一构建 Android APK、Windows 安装版/免安装版、macOS Intel/Apple Silicon DMG 和未签名 iOS IPA。普通源码检查由 `.github/workflows/ci.yml` 负责，不再让每次 `main` 提交覆盖 GitHub Releases 的“最新版本”。
 
 ## 本地构建
 
@@ -42,3 +42,16 @@ git push origin v0.6.0
 ```
 
 工作流会依次运行完整检查、生成 Android 工程、构建 APK、验证签名、生成 SHA-256，并发布到 GitHub Releases。也可以在 Actions 页面手动运行构建，但手动构建只上传 Artifact，不创建正式 Release。
+
+## Windows 与 macOS
+
+`desktop/` 是 Expo Web 静态导出的 Electron 外壳。它使用 `nightfall://app` 安全协议读取安装包内资源，并设置 SQLite Web 所需的 COOP/COEP 响应头；外部导航、新窗口、权限请求和打包后的开发者工具全部关闭。
+
+Windows 和 macOS 当前没有商业代码签名证书：
+
+- Windows 会生成 NSIS 安装版和 Portable 免安装版，SmartScreen 可能提示未知发布者。
+- macOS 会分别生成 Intel 与 Apple Silicon DMG，未做 Apple 公证，首次启动需要用户在“隐私与安全性”中允许。
+
+## iOS
+
+iOS 由 macOS Runner 执行 Expo Prebuild、CocoaPods 和 `xcodebuild`，再打包为 `Payload/*.app` 的 IPA。仓库没有 Apple Developer 证书时，产物是未签名 IPA，不能直接安装；用户需要用 Xcode、Sideloadly 或 AltStore 按自己的 Apple ID 重新签名。需要 App Store 或 TestFlight 版本时，必须另行配置 Apple 证书与 Provisioning Profile。

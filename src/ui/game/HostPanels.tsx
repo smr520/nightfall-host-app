@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { Alert } from '../alert';
 import { alive, seatName, type NightCallActorStatus } from '../../game/engine';
 import { canHandOffBadge, winnerLabel } from '../../game/host-ui';
 import { ROLES, isWolf } from '../../game/roles';

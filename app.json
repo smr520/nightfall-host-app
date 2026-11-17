@@ -3,9 +3,10 @@
     "name": "夜幕 · 主持助手",
     "slug": "nightfall-host",
     "scheme": "nightfall",
-    "version": "1.0.5",
+    "version": "1.1.0",
     "platforms": [
       "android",
+      "ios",
       "web"
     ],
     "orientation": "default",
@@ -13,7 +14,7 @@
     "icon": "./assets/icon.png",
     "android": {
       "package": "com.nightfall.werewolfhost",
-      "versionCode": 14,
+      "versionCode": 15,
       "predictiveBackGestureEnabled": true,
       "permissions": [],
       "blockedPermissions": [
@@ -24,12 +25,35 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundColor": "#141713"
+        "backgroundColor": "#050505"
       }
+    },
+    "ios": {
+      "bundleIdentifier": "com.nightfall.werewolfhost",
+      "buildNumber": "15",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-sqlite",
       "expo-system-ui",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain"
+        }
+      ],
       "./plugins/with-android-release-signing",
       "./plugins/with-android-privacy"
     ]

@@ -9,6 +9,13 @@ import { DataBackupScreen } from '../src/ui/DataBackupScreen';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
+jest.mock('react-native/Libraries/Utilities/Platform', () => {
+  const platform = {
+    OS: 'android',
+    select: (spec: { android?: unknown; native?: unknown; default?: unknown }) => spec.android ?? spec.native ?? spec.default,
+  };
+  return { __esModule: true, default: platform, ...platform };
+});
 jest.mock('expo-file-system/legacy', () => ({
   readAsStringAsync: jest.fn(),
   StorageAccessFramework: {

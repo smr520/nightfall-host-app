@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Alert } from '../alert';
 import { boardById, boardRoles } from '../../game/boards';
 import type { Role } from '../../game/roles';
 import { createPlayerNotebook, type PlayerNotebook } from '../../player/notes';

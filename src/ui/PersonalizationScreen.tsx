@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert } from './alert';
 import { colors, radius, spacing, type } from '../theme';
 import { ROLES } from '../game/roles';
 import { tableRules } from '../game/table-rules';

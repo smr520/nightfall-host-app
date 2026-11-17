@@ -1,16 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { BackHandler, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { parseBackup, type BackupPayload } from '../game/backup';
 import { Button, Card, Divider, InlineError, TopBar } from './kit';
 import { colors, radius, spacing, type } from '../theme';
 import { useResponsive } from './responsive';
+import { backupFilename, readBackupFile, saveBackupText, shareBackupText } from './backup-file';
+import { Alert } from './alert';
 
 const MAX_BACKUP_CHARACTERS = 5_000_000;
-// A UTF-8 file cannot require more than three bytes per JavaScript UTF-16 unit.
-// Reject certainly oversized files before allocating their complete contents.
-const MAX_BACKUP_FILE_BYTES = MAX_BACKUP_CHARACTERS * 3;
 
 export type BackupPreview = {
   exportedAt: number;
@@ -73,12 +71,7 @@ export function DataBackupScreen({ onBack, hasActiveSession, currentSessionDamag
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset) return;
-      if (typeof asset.size === 'number' && asset.size > MAX_BACKUP_FILE_BYTES) throw new Error('备份文件过大，未修改本机数据');
-      const file = await FileSystem.getInfoAsync(asset.uri);
-      if (!file.exists || file.isDirectory) throw new Error('备份文件已不存在或不可读取，请重新选择');
-      if (file.size > MAX_BACKUP_FILE_BYTES) throw new Error('备份文件过大，未修改本机数据');
-      const raw = await FileSystem.readAsStringAsync(asset.uri);
-      if (raw.length > MAX_BACKUP_CHARACTERS) throw new Error('备份文件过大，未修改本机数据');
+      const raw = await readBackupFile(asset);
       setInput(raw); setPreview(null); setReplaceCurrent(false);
       setMessage(`已读取文件：${asset.name}。请先检查备份摘要。`);
     } catch (reason) {
@@ -90,12 +83,11 @@ export function DataBackupScreen({ onBack, hasActiveSession, currentSessionDamag
     if (!beginOperation()) return;
     try {
       const raw = await onExportBackup();
-      const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (!permission.granted) { setMessage('未授予文件夹权限，备份文件未写入。'); return; }
-      const filename = `nightfall-backup-${new Date().toISOString().slice(0, 10)}`;
-      const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, filename, 'application/json');
-      await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, raw);
-      setMessage('备份文件已保存到你选择的文件夹。');
+      const result = await saveBackupText(raw, backupFilename());
+      if (result === 'cancelled') setMessage('未选择保存位置或未授予文件夹权限，备份文件未写入。');
+      if (result === 'saved') setMessage('备份文件已保存到你选择的位置。');
+      if (result === 'downloaded') setMessage('备份文件已下载到浏览器的下载目录。');
+      if (result === 'shared') setMessage('已打开系统分享面板，请选择“存储到文件”或可信的位置。');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '保存备份文件失败，数据未修改');
     } finally { finishOperation(); }
@@ -116,7 +108,9 @@ export function DataBackupScreen({ onBack, hasActiveSession, currentSessionDamag
     if (!beginOperation()) return;
     try {
       const raw = await onExportBackup();
-      await Share.share({ title: '夜幕本机备份', message: raw });
+      const result = await shareBackupText('夜幕本机备份', raw, backupFilename());
+      if (result === 'copied') setMessage('备份文本已复制到剪贴板。');
+      if (result === 'downloaded') setMessage('当前环境不能直接分享，已下载备份文件。');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '备份分享失败，数据未修改');
     } finally { finishOperation(); }

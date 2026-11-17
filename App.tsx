@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
 import { usePreventScreenCapture } from 'expo-screen-capture';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { clearDamagedSession, clearSession, exportBackup, exportRawData, getWarnings, persistAppRole, persistSession, readAppRole, readHistory, restoreBackup, retryPersistSession, readSession, type AppRole } from './src/storage';
 import { applyAction } from './src/game/engine';
@@ -29,6 +29,8 @@ import { HostLockGate } from './src/ui/HostLockGate';
 import { rulesForHostingMode } from './src/game/preferences';
 import { refreshSetupMemory, setupMemoryFromGame, type SetupMemory } from './src/game/setup-memory';
 import { useHostingPreferences } from './src/hooks/useHostingPreferences';
+import { backupFilename, shareBackupText } from './src/ui/backup-file';
+import { Alert } from './src/ui/alert';
 
 type MainTab = 'home' | 'skills' | 'personalization';
 type Screen = MainTab | 'setup' | 'game' | 'history' | 'backup' | 'profile-editor';
@@ -271,7 +273,7 @@ function AppContent() {
   ]);
   const shareRecovery = () => Alert.alert('分享私密存档数据？', '包含全部身份与夜间记录，只应发送给你信任的人。', [
     { text: '取消', style: 'cancel' },
-    { text: '继续分享', onPress: () => { void exportRawData().then(message => Share.share({ title: '夜幕原始存档（私密）', message })).catch(() => setRecoveryWarning('原始数据读取或分享失败，未清除任何记录。')); } },
+    { text: '继续分享', onPress: () => { void exportRawData().then(message => shareBackupText('夜幕原始存档（私密）', message, `${backupFilename()}-raw`)).catch(() => setRecoveryWarning('原始数据读取或分享失败，未清除任何记录。')); } },
   ]);
   const clearBroken = () => Alert.alert('备份后清除异常会话？', '只清除无法读取的进行中会话，不清除历史。原始字符串先存入恢复备份；备份失败则不清除。', [
     { text: '取消', style: 'cancel' },
@@ -416,10 +418,7 @@ function AppContent() {
 export default function App() {
   const exportPrivateData = async () => {
     const message = await exportRawData();
-    await Share.share({
-      title: '夜幕原始存档（私密）',
-      message,
-    });
+    await shareBackupText('夜幕原始存档（私密）', message, `${backupFilename()}-raw`);
   };
   return (
     <ErrorBoundary onExportRawData={exportPrivateData}>

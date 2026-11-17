@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, BackHandler, Keyboard, ScrollView, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { Animated, BackHandler, Keyboard, ScrollView, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { Alert } from './alert';
 import { colors, spacing, type } from '../theme';
 import { BOARD_LIBRARY, countsFromRoles, type Board } from '../game/boards';
 import { treasureReserveLog } from '../game/jingcheng-draw';

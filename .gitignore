@@ -1,6 +1,7 @@
 node_modules/
 .expo/
 dist/
+desktop/app/
 android/
 ios/
 *.jks
@@ -13,3 +14,6 @@ build-output/
 release-temp/
 build-export-*/
 build-output-export-*/
+# @generated expo skills start
+.agents/skills/expo-sqlite
+# @generated expo skills end

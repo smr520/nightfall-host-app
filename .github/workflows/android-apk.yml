@@ -1,4 +1,4 @@
-name: Android APK
+name: Release packages
 
 on:
   workflow_dispatch:
@@ -6,34 +6,65 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: release-packages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build-apk:
-    name: Build release APK
+  validate:
+    name: Validate source
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validate license files
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Validate license and release version
         run: |
           test -s LICENSE
           test -s NOTICE
           grep -q "GNU GENERAL PUBLIC LICENSE" LICENSE
           grep -q "GPL-3.0-only" NOTICE
-
-      - name: Validate tag version
-        if: github.ref_type == 'tag'
-        run: |
           VERSION="$(node -p "require('./package.json').version")"
-          test "$GITHUB_REF_NAME" = "v$VERSION"
+          test "$(node -p "require('./app.json').expo.version")" = "$VERSION"
+          test "$(node -p "require('./desktop/package.json').version")" = "$VERSION"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            test "$GITHUB_REF_NAME" = "v$VERSION"
+          fi
+
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix desktop ci --no-audit --no-fund
+
+      - name: Full validation
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test:engine
+          npm run test:regressions
+          npm run test:ui
+          npm run desktop:check
+          npx expo-doctor
+
+  android:
+    name: Android APK
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -57,15 +88,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-
-      - name: Full validation
-        run: |
-          npm run typecheck
-          npm run lint
-          npm run test:engine
-          npm run test:regressions
-          npm run test:ui
-          npx expo-doctor
 
       - name: Prepare release signing
         env:
@@ -121,54 +143,253 @@ jobs:
             exit 1
           fi
 
-      - name: Name files
-        id: package
+      - name: Name Android files
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           FILE="nightfall-host-${VERSION}.apk"
           cp android/app/build/outputs/apk/release/app-release.apk "$FILE"
           sha256sum "$FILE" > "$FILE.sha256"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "file=$FILE" >> "$GITHUB_OUTPUT"
 
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v6
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: nightfall-host-${{ steps.package.outputs.version }}-apk
+          name: android-apk
           path: |
-            ${{ steps.package.outputs.file }}
-            ${{ steps.package.outputs.file }}.sha256
-            LICENSE
-            NOTICE
+            nightfall-host-*.apk
+            nightfall-host-*.apk.sha256
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish versioned release
-        if: github.ref_type == 'tag'
+  windows:
+    name: Windows desktop
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix desktop ci --no-audit --no-fund
+
+      - name: Build Windows packages
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm run desktop:prepare
+          npm --prefix desktop run build:win
+          Get-ChildItem build-output/desktop/*.exe | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)" | Set-Content -Encoding ascii -LiteralPath "$($_.FullName).sha256"
+          }
+
+      - name: Smoke-test Electron runtime
+        env:
+          NIGHTFALL_DESKTOP_EXECUTABLE: build-output/desktop/win-unpacked/夜幕主持助手.exe
+        run: npm run desktop:smoke
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-desktop
+          path: |
+            build-output/desktop/*.exe
+            build-output/desktop/*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: macOS desktop
+    needs: validate
+    runs-on: macos-15-intel
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix desktop ci --no-audit --no-fund
+
+      - name: Build macOS DMG
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm run desktop:prepare
+          npm --prefix desktop run build:mac -- --x64
+          npm --prefix desktop run build:mac -- --arm64
+          (
+            cd build-output/desktop
+            for file in *.dmg; do
+              hdiutil verify "$file"
+              shasum -a 256 "$file" > "$file.sha256"
+            done
+          )
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-desktop
+          path: |
+            build-output/desktop/*.dmg
+            build-output/desktop/*.dmg.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: iOS unsigned IPA
+    needs: validate
+    runs-on: macos-26
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate iOS project
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Build unsigned iOS app
+        run: |
+          WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
+          test -n "$WORKSPACE"
+          SCHEME="$(xcodebuild -list -json -workspace "$WORKSPACE" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => { const parsed = JSON.parse(data); const schemes = parsed.workspace?.schemes ?? parsed.project?.schemes ?? []; if (!schemes[0]) process.exit(1); process.stdout.write(schemes[0]); });")"
+          test -n "$SCHEME"
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/ios-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          APP="$(find "$RUNNER_TEMP/ios-derived/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' | head -n 1)"
+          test -d "$APP"
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          test "$BUNDLE_ID" = "com.nightfall.werewolfhost"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          FILE="nightfall-host-${VERSION}-ios-unsigned.ipa"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/$FILE" Payload)
+          shasum -a 256 "$FILE" > "$FILE.sha256"
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-unsigned-ipa
+          path: |
+            nightfall-host-*-ios-unsigned.ipa
+            nightfall-host-*-ios-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs:
+      - android
+      - windows
+      - macos
+      - ios
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v7
+
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.package.outputs.version }}
-          FILE: ${{ steps.package.outputs.file }}
         run: |
-          cat > release-notes.md <<'EOF'
-          夜幕 Android 正式版，可直接安装测试。
+          VERSION="$(node -p "require('./package.json').version")"
+          (
+            cd release-assets
+            for file in *; do
+              case "$file" in
+                *.sha256) continue ;;
+              esac
+              sha256sum "$file" > "$file.sha256"
+            done
+          )
+          cat > release-notes.md <<EOF
+          夜幕 ${VERSION} 多端正式发布。
 
-          包含主持端与玩家端本地数据分离、31 套板子、50 种角色资料、独立遗言队列、分阶段计时、本局技能处理清单、主持大字档位、手机和平板自适应界面。本版重新整理为“白纸墨字”主持台：精简首页与板子首屏，合并本步提示，主持底栏改为单行主次操作，页签计数改为小徽标；身份座位网格可更早进入首屏。新局默认采用夜间行动流程：赛前只确认阵容、桌规、姓名和座位，轮到角色时先点选实际睁眼座位，确认后才进入技能操作。沿用上次设置也必须重新走完三步开局。默认保留出局角色夜间空唤醒，并可切换快速放逐记录与逐人计票。
+          ### 安装包说明
 
-          此 APK 使用固定发布签名，后续正式版可覆盖安装。正式包不申请网络或悬浮窗权限，并关闭 Android 自动备份。卸载会删除本机数据，请先导出备份。
+          - Android：签名 APK，可直接安装，后续同签名正式版可覆盖升级。
+          - Windows：提供安装版和免安装版；当前未购买 Windows 代码签名证书，SmartScreen 可能显示“未知发布者”。
+          - macOS：提供 Intel 与 Apple Silicon 两个 DMG；当前未签名、未公证，首次打开需在“系统设置 → 隐私与安全性”中允许。
+          - iOS：提供未签名 IPA。当前仓库没有 Apple Developer 签名证书，不能直接双击安装；需使用 Xcode、Sideloadly 或 AltStore 按你的 Apple ID 重新签名。
+
+          ### 多端变化
+
+          Android、iOS、Windows、macOS 共用本地规则引擎与同一套存档格式。桌面端使用离线本地协议运行，不加载远程页面；SQLite 存储启用跨源隔离，不申请联网权限。Windows/macOS 增加系统原生“另存为”备份入口，iOS/Android 保留文件分享与本地导入。
+
+          应用图标采用用户提供的“血月狼人杀徽章”。
+
+          安装包均附 SHA-256。卸载 Android 或 iOS App 会删除本机数据，请先在“个性化 → 本机数据”导出备份；Windows/macOS 卸载前也建议导出。
 
           ---
 
           ### 许可证
 
-          本项目源代码及此 Release 中的官方发布物采用 **GPL-3.0-only**。许可证全文见随附的 `LICENSE` 文件，第三方权利说明见 `NOTICE`。分发修改后的 APK 时，必须按同一许可证向接收者提供对应源代码。
+          本项目源代码及此 Release 中的官方发布物采用 **GPL-3.0-only**。许可证全文见随附的 LICENSE 文件，第三方权利说明见 NOTICE。分发修改后的安装包时，必须按同一许可证向接收者提供对应源代码。
           EOF
-          gh release create "$GITHUB_REF_NAME" \
-            "$FILE" \
-            "$FILE.sha256" \
-            LICENSE \
-            NOTICE \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "夜幕 $VERSION" \
-            --notes-file release-notes.md \
-            --latest
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/* LICENSE NOTICE --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "夜幕 $VERSION" --notes-file release-notes.md --latest
+          else
+            gh release create "$GITHUB_REF_NAME" release-assets/* LICENSE NOTICE \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "夜幕 $VERSION" \
+              --notes-file release-notes.md \
+              --latest
+          fi
