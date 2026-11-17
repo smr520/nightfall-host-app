@@ -21,7 +21,10 @@ async function pageTarget() {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (response.ok) {
         const targets = await response.json();
-        const page = targets.find(target => target.type === 'page' && target.webSocketDebuggerUrl);
+        const page = targets.find(target =>
+          target.type === 'page'
+          && target.webSocketDebuggerUrl
+          && String(target.url).startsWith('nightfall://app/'));
         if (page) return page;
       }
     } catch {
@@ -80,13 +83,24 @@ async function main() {
 
   try {
     const page = await pageTarget();
-    const result = await evaluate(page, `({
-      title: document.title,
-      protocol: location.protocol,
-      crossOriginIsolated,
-      sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
-      hasNightfallText: document.body.innerText.includes('夜幕')
-    })`);
+    const result = await evaluate(page, `(async () => {
+      let snapshot = null;
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        snapshot = {
+          title: document.title,
+          protocol: location.protocol,
+          readyState: document.readyState,
+          crossOriginIsolated,
+          sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+          hasNightfallText: document.body.innerText.includes('夜幕')
+        };
+        if (snapshot.protocol === 'nightfall:'
+          && snapshot.readyState === 'complete'
+          && snapshot.hasNightfallText) return snapshot;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      return snapshot;
+    })()`);
     if (result.protocol !== 'nightfall:') throw new Error(`Unexpected protocol: ${result.protocol}`);
     if (!result.crossOriginIsolated) throw new Error('Electron page is not cross-origin isolated');
     if (!result.sharedArrayBuffer) throw new Error('SharedArrayBuffer is unavailable');
